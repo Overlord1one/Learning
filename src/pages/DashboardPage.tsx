@@ -221,7 +221,7 @@ export function DashboardPage() {
             Shop öffnen
           </Button>
           <p className="mt-auto pt-3 text-xs leading-relaxed text-faint">
-            60 Minuten Fokus = 10 SC + 60 XP, gewichtet nach Fach: Mathematik ×1,5 bis Video-Schnitt ×0,5. Credits gibt es nur für bestätigte Sessions.
+            60 Minuten Fokus = 10 SC + 60 XP, gewichtet nach Fach: Mathematik ×1,5 bis Vorlesungen ×0,375. Credits gibt es nur für bestätigte Sessions.
           </p>
         </Card>
 

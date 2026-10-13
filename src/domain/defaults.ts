@@ -7,7 +7,7 @@ import type { AppData, Reward, Settings, StudyCategory } from './types';
  * Subjects ordered by priority. The weighting scales credits and XP per hour.
  * Math has 8 school hours per week – twice as many as the other school subjects
  * (4 h each) – and is weighted highest. Programming (self-study) comes next,
- * then the 4-hour school subjects, lectures and finally video editing.
+ * then the 4-hour school subjects, video editing and lectures (half of v4).
  */
 export const DEFAULT_CATEGORIES: StudyCategory[] = [
   { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false, weightPercent: 150, weeklyTargetMinutes: 0 },
@@ -15,7 +15,7 @@ export const DEFAULT_CATEGORIES: StudyCategory[] = [
   { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false, weightPercent: 120, weeklyTargetMinutes: 0 },
   { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 0 },
   { id: 'cat-digitalrechner', name: 'Digitalrechner', color: '#008300', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 0 },
-  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 75, weeklyTargetMinutes: 0 },
+  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 37.5, weeklyTargetMinutes: 0 },
   { id: 'cat-video', name: 'Video-Schnitt (Social Media)', color: '#e66767', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0 },
   { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0 },
 ];

@@ -20,6 +20,7 @@ import { fail, ok } from './types';
 const iso = z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Ungültiger Zeitstempel');
 const dayKeySchema = z.string().refine(isValidDayKey, 'Ungültiges Datum');
 const int = z.number().int();
+const weight = z.number().min(25).max(300).refine((v) => Number.isInteger(v * 2), 'Ungültige Gewichtung');
 
 const rates = z.object({ creditCentsPerHour: int.min(1), xpPerHour: int.min(1) });
 
@@ -41,7 +42,7 @@ const schema = z.object({
   }),
   categories: z
     .array(
-      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: int.min(25).max(300), weeklyTargetMinutes: int.min(0).max(10080) }),
+      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: weight, weeklyTargetMinutes: int.min(0).max(10080) }),
     )
     .min(1),
   sessions: z.array(
@@ -57,7 +58,7 @@ const schema = z.object({
       description: z.string(),
       taskCompleted: z.boolean().nullable(),
       rates,
-      weightPercent: int.min(25).max(300),
+      weightPercent: weight,
       createdAt: iso,
       updatedAt: iso,
     }),
@@ -170,6 +171,7 @@ export function migrate(raw: unknown): unknown {
   if (isRecord(data) && data.schemaVersion === 1) data = migrateV1toV2(data);
   if (isRecord(data) && data.schemaVersion === 2) data = migrateV2toV3(data);
   if (isRecord(data) && data.schemaVersion === 3) data = migrateV3toV4(data);
+  if (isRecord(data) && data.schemaVersion === 4) data = migrateV4toV5(data);
   return data;
 }
 
@@ -257,6 +259,24 @@ function migrateV3toV4(raw: Record<string, unknown>): unknown {
   }
   if (isRecord(data.settings) && data.settings.dailyGoalMinutes === 240) data.settings.dailyGoalMinutes = 120;
   data.schemaVersion = 4;
+  return data;
+}
+
+/** v5: lectures are worth half as much (×0,75 → ×0,375). */
+function migrateV4toV5(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  const OLD = 75;
+  const NEW = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-vorlesungen')!.weightPercent;
+  let changed = false;
+  if (Array.isArray(data.categories)) {
+    data.categories = data.categories.map((c: StudyCategory) => {
+      if (c.id !== 'cat-vorlesungen' || c.weightPercent !== OLD) return c;
+      changed = true;
+      return { ...c, weightPercent: NEW };
+    });
+  }
+  if (changed) reweightSessions(data, (s) => (s.categoryId === 'cat-vorlesungen' && s.weightPercent === OLD ? NEW : s.weightPercent));
+  data.schemaVersion = 5;
   return data;
 }
 
