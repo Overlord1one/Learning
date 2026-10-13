@@ -16,7 +16,7 @@ import {
 } from '../domain/stats';
 import type { RangeKey } from '../domain/stats';
 import { dayKey, parseDayKey } from '../domain/dates';
-import { earnedCents, spentCents } from '../domain/economy';
+import { earnedCents, levelForXp, spentCents } from '../domain/economy';
 import { formatDate, formatDecimal, formatHours, formatHoursPrecise, formatInt, formatMinutes, formatSC, formatShortDate } from '../domain/format';
 import { Card, CardTitle, PageHeader, Segmented, Select } from '../components/ui/primitives';
 import { ProgressBar } from '../components/ui/progress';
@@ -206,7 +206,7 @@ export function ProgressPage() {
                   <YAxis {...axisProps} tickFormatter={(v: number) => formatInt(v)} />
                   <Tooltip
                     cursor={{ stroke: CHART.axis, strokeDasharray: '3 3' }}
-                    content={<ChartTooltip format={(v) => `${formatInt(v)} XP · Level ${Math.floor(v / 300) + 1}`} labelFormat={(l) => formatDate(parseDayKey(l))} />}
+                    content={<ChartTooltip format={(v) => `${formatInt(v)} XP · Level ${levelForXp(v)}`} labelFormat={(l) => formatDate(parseDayKey(l))} />}
                   />
                   <Area type="linear" dataKey="xp" name="XP" stroke={CHART.series1} strokeWidth={2} fill="url(#xp-fill)" isAnimationActive={anim} activeDot={{ r: 4, stroke: CHART.surface, strokeWidth: 2 }} />
                 </AreaChart>
@@ -253,7 +253,7 @@ function ProjectionCard() {
   const rewards = useMemo(() => shopRewards(data).map((r) => rewardProgress(data, r, player.balanceCents)).filter((r) => r.status !== 'freigeschaltet'), [data, player.balanceCents]);
   const [selected, setSelected] = useState<string>(data.settings.goalRewardId ?? rewards[0]?.reward.id ?? '');
   const item = rewards.find((r) => r.reward.id === selected) ?? rewards[0];
-  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.minutesNeeded, new Date()) : null), [data.sessions, item]);
+  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.missingCents, new Date()) : null), [data.sessions, item]);
 
   return (
     <Card className="mt-5">

@@ -3,13 +3,22 @@ import { DEFAULT_RANKS } from './ranks';
 import { SCHEMA_VERSION } from './types';
 import type { AppData, Reward, Settings, StudyCategory } from './types';
 
+/**
+ * Subjects ordered by priority. The weighting scales credits and XP per hour:
+ * math (8 h per week) is worth the most, video editing for social media the least.
+ */
 export const DEFAULT_CATEGORIES: StudyCategory[] = [
-  { id: 'cat-cs50x', name: 'Harvard CS50x', color: '#3987e5', isDefault: true, archived: false },
-  { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false },
-  { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false },
-  { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false },
-  { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false },
+  { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false, weightPercent: 125 },
+  { id: 'cat-cs50x', name: 'Harvard CS50x', color: '#3987e5', isDefault: true, archived: false, weightPercent: 110 },
+  { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false, weightPercent: 110 },
+  { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false, weightPercent: 100 },
+  { id: 'cat-digitalrechner', name: 'Digitalrechner', color: '#008300', isDefault: true, archived: false, weightPercent: 90 },
+  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 75 },
+  { id: 'cat-video', name: 'Video-Schnitt (Social Media)', color: '#e66767', isDefault: true, archived: false, weightPercent: 50 },
+  { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false, weightPercent: 50 },
 ];
+
+export const WEIGHT_OPTIONS = [50, 75, 90, 100, 110, 125, 150];
 
 /** Categorical palette – validated for colour-vision deficiency on the dark surface. */
 export const CATEGORY_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
@@ -25,7 +34,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Stealth Edition',
     icon: 'mousepad',
     imageUrl: '',
-    priceCents: 4000,
+    priceCents: 15000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -42,7 +51,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Weiß / Hellgrau',
     icon: 'mouse',
     imageUrl: '',
-    priceCents: 10000,
+    priceCents: 40000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -59,7 +68,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Light / Silber / Weiß',
     icon: 'keyboard',
     imageUrl: '',
-    priceCents: 17500,
+    priceCents: 70000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -76,7 +85,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Open-Back',
     icon: 'headphones',
     imageUrl: '',
-    priceCents: 20000,
+    priceCents: 80000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -93,7 +102,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Große Tischplatte, dunkles Finish',
     icon: 'desk',
     imageUrl: '',
-    priceCents: 70000,
+    priceCents: 250000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'hoch',
@@ -124,13 +133,22 @@ export const PREOWNED_REWARDS: DefaultRewardSeed[] = [
   },
 ];
 
+/** Prices of the first release – used to migrate untouched rewards to the new prices. */
+export const V1_DEFAULT_PRICES: Record<string, number> = {
+  'rw-mousepad': 4000,
+  'rw-mx-master': 10000,
+  'rw-lofree-flow': 17500,
+  'rw-dt900': 20000,
+  'rw-flexispot': 70000,
+};
+
 export const DEFAULT_REWARD_IDS = DEFAULT_REWARDS.map((r) => r.id);
 
 export function defaultSettings(): Settings {
   return {
     profileName: '',
     dailyGoalMinutes: 120,
-    defaultCategoryId: 'cat-cs50x',
+    defaultCategoryId: 'cat-mathe',
     rates: { ...DEFAULT_RATES },
     ranks: DEFAULT_RANKS.map((r) => ({ ...r })),
     goalRewardId: 'rw-mousepad',

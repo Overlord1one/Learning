@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import { useActiveCategories, useData } from '../../store/hooks';
 import { creditsForMinutes, xpForMinutes, MAX_SESSION_MINUTES } from '../../domain/economy';
 import { dayKey } from '../../domain/dates';
-import { formatInt, formatSC } from '../../domain/format';
+import { formatInt, formatSC, formatWeight } from '../../domain/format';
 import type { StudySession } from '../../domain/types';
 import { Button, Field, Input, Segmented, Select, Textarea } from '../ui/primitives';
 import { CategoryDialog } from './CategoryDialog';
@@ -60,7 +60,13 @@ export function SessionForm({ initial, submitLabel, onSubmit, onCancel }: Props)
 
   // Edits keep the rates locked into the session; new sessions use the current rates.
   const rates = initial?.rates ?? data.settings.rates;
-  const preview = useMemo(() => (durationError ? null : { credits: creditsForMinutes(total, rates), xp: xpForMinutes(total, rates) }), [durationError, total, rates]);
+  // The subject weighting stays locked unless the session moves to another subject.
+  const weight =
+    initial && initial.categoryId === categoryId ? initial.weightPercent : (data.categories.find((c) => c.id === categoryId)?.weightPercent ?? 100);
+  const preview = useMemo(
+    () => (durationError ? null : { credits: creditsForMinutes(total, rates, weight), xp: xpForMinutes(total, rates, weight) }),
+    [durationError, total, rates, weight],
+  );
 
   // Archived categories stay selectable when editing an old session that uses one.
   const options = initial && !categories.some((c) => c.id === initial.categoryId)
@@ -82,7 +88,7 @@ export function SessionForm({ initial, submitLabel, onSubmit, onCancel }: Props)
             <Select id="sf-cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               {options.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name} ({formatWeight(c.weightPercent)})
                   {c.archived ? ' (archiviert)' : ''}
                 </option>
               ))}

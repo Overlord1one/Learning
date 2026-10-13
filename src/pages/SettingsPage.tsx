@@ -27,7 +27,7 @@ import { useAppStore } from '../store/appStore';
 import { useActiveCategories, useData } from '../store/hooks';
 import { DEFAULT_RATES } from '../domain/economy';
 import { DEFAULT_RANKS } from '../domain/ranks';
-import { formatCredits, formatDate, formatSC, formatTime, parseCreditsInput } from '../domain/format';
+import { formatCredits, formatDate, formatSC, formatTime, formatWeight, parseCreditsInput } from '../domain/format';
 import type { AccentName, MotionPreference, RankTier, Reward, StudyCategory, TransactionType } from '../domain/types';
 import { Badge, Button, Card, Field, IconButton, Input, PageHeader, Segmented, Select, Toggle } from '../components/ui/primitives';
 import { ConfirmDialog } from '../components/ui/dialog';
@@ -193,7 +193,7 @@ function EconomySection() {
   };
 
   return (
-    <Section icon={Coins} title="Belohnungsraten" description="Standard: 10 SC und 60 XP pro Stunde fokussiertem Lernen.">
+    <Section icon={Coins} title="Belohnungsraten" description="Standard: 10 SC und 60 XP pro Stunde – multipliziert mit der Gewichtung des Fachs.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Setup Credits pro Stunde" htmlFor="set-sc">
           <Input id="set-sc" inputMode="decimal" value={credits} onChange={(e) => setCredits(e.target.value)} />
@@ -204,7 +204,7 @@ function EconomySection() {
       </div>
       <p className="mt-4 rounded-xl border border-line-soft bg-[#111418] px-4 py-3 text-[13px] leading-relaxed text-muted">
         Neue Raten gelten nur für <span className="text-fg">zukünftige</span> Sessions. Jede Session speichert die Raten, mit denen sie erfasst wurde – auch beim späteren Bearbeiten.
-        Vergangene Freischaltungen behalten ihren damaligen Preis. Level bleiben bei 300 XP pro Stufe.
+        Vergangene Freischaltungen behalten ihren damaligen Preis. Pro Fach wird die Rate zusätzlich mit der Gewichtung multipliziert (z. B. Mathematik ×1,25).
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="primary" disabled={!changed} onClick={() => setConfirm(true)}>
@@ -273,20 +273,20 @@ function RanksSection() {
 }
 
 function CategoriesSection() {
-  const data = useData();
   const removeCategory = useAppStore((s) => s.removeCategory);
   const feedback = useSaveFeedback();
   const [editing, setEditing] = useState<StudyCategory | undefined>(undefined);
   const [open, setOpen] = useState(false);
-  const active = data.categories.filter((c) => !c.archived);
+  const active = useActiveCategories();
 
   return (
-    <Section icon={Tags} title="Lernkategorien" description="Benutzte Kategorien werden archiviert statt gelöscht, damit dein Verlauf erhalten bleibt.">
+    <Section icon={Tags} title="Lernkategorien" description="Sortiert nach Priorität. Die Gewichtung bestimmt Credits und XP pro Stunde; benutzte Kategorien werden archiviert statt gelöscht.">
       <ul className="flex flex-col">
         {active.map((c) => (
           <li key={c.id} className="flex items-center gap-3 border-b border-line-soft py-2.5 last:border-0">
             <span className="size-2.5 rounded-full" style={{ background: c.color }} />
             <span className="flex-1 text-sm text-fg">{c.name}</span>
+            <span className="tabular text-xs text-muted" title="Gewichtung">{formatWeight(c.weightPercent)}</span>
             {c.isDefault && <Badge>Standard</Badge>}
             <IconButton
               icon={Pencil}

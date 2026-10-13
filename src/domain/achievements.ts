@@ -1,6 +1,7 @@
 /** Achievements are derived from real progress only – they cannot be granted manually. */
 import { DEFAULT_REWARD_IDS } from './defaults';
 import { studyStats } from './stats';
+import { dayKey, parseDayKey, startOfWeek } from './dates';
 import type { AppData } from './types';
 
 export type AchievementIcon = 'footprints' | 'flame' | 'calendar' | 'calendarCheck' | 'brain' | 'gift' | 'layers' | 'crown' | 'clock' | 'trophy';
@@ -10,6 +11,8 @@ export interface AchievementContext {
   sessionCount: number;
   bestStreak: number;
   longestSessionMinutes: number;
+  /** Most math minutes studied within a single calendar week (Mon–Sun). */
+  bestMathWeekMinutes: number;
   unlockedRewardIds: Set<string>;
 }
 
@@ -77,13 +80,23 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     unit: 'Min.',
   },
   {
+    id: 'mathe-woche',
+    title: 'Mathe-Woche',
+    description: 'Lerne 8 Stunden Mathematik innerhalb einer Woche (Mo–So).',
+    icon: 'brain',
+    tier: 'silber',
+    progress: (c) => c.bestMathWeekMinutes / 60,
+    target: 8,
+    unit: 'h',
+  },
+  {
     id: 'ausdauer',
     title: 'Ausdauer',
-    description: 'Lerne insgesamt 25 Stunden.',
+    description: 'Lerne insgesamt 50 Stunden.',
     icon: 'clock',
     tier: 'silber',
     progress: (c) => c.totalMinutes / 60,
-    target: 25,
+    target: 50,
     unit: 'h',
   },
   {
@@ -117,6 +130,16 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     unit: 'h',
   },
   {
+    id: 'marathon',
+    title: 'Marathon',
+    description: 'Lerne insgesamt 250 Stunden.',
+    icon: 'flame',
+    tier: 'gold',
+    progress: (c) => c.totalMinutes / 60,
+    target: 250,
+    unit: 'h',
+  },
+  {
     id: 'final-setup',
     title: 'Final Setup',
     description: 'Schalte alle fünf ursprünglichen Belohnungen frei.',
@@ -135,8 +158,19 @@ export function achievementContext(data: AppData, now: Date): AchievementContext
     sessionCount: stats.sessionCount,
     bestStreak: stats.bestStreak,
     longestSessionMinutes: stats.longestSessionMinutes,
+    bestMathWeekMinutes: bestWeekMinutes(data, 'cat-mathe'),
     unlockedRewardIds: new Set(data.purchases.filter((p) => p.refundedAt === null).map((p) => p.rewardId)),
   };
+}
+
+function bestWeekMinutes(data: AppData, categoryId: string): number {
+  const weeks = new Map<string, number>();
+  for (const s of data.sessions) {
+    if (s.categoryId !== categoryId) continue;
+    const week = dayKey(startOfWeek(parseDayKey(s.date)));
+    weeks.set(week, (weeks.get(week) ?? 0) + s.minutes);
+  }
+  return Math.max(0, ...weeks.values());
 }
 
 export interface AchievementState {

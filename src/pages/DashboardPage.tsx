@@ -32,7 +32,7 @@ function GoalCard() {
   const goal = goalReward(data);
   const progress = goal ? rewardProgress(data, goal, player.balanceCents) : null;
   const projection = useMemo(
-    () => (progress ? projectCompletion(data.sessions, progress.minutesNeeded, new Date()) : null),
+    () => (progress ? projectCompletion(data.sessions, progress.missingCents, new Date()) : null),
     [data.sessions, progress],
   );
 
@@ -218,7 +218,7 @@ export function DashboardPage() {
             Shop öffnen
           </Button>
           <p className="mt-auto pt-3 text-xs leading-relaxed text-faint">
-            60 Minuten Fokus = 10 SC + 60 XP. Credits erhältst du nur für bestätigte Sessions.
+            60 Minuten Fokus = 10 SC + 60 XP, gewichtet nach Fach: Mathematik ×1,25 bis Video-Schnitt ×0,5. Credits gibt es nur für bestätigte Sessions.
           </p>
         </Card>
 

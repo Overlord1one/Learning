@@ -4,7 +4,7 @@ import { Flag, Focus, Minimize2, Pause, Play, Plus, Square, Trash2 } from 'lucid
 import { useAppStore } from '../../store/appStore';
 import { useActiveCategories, useData, useNow } from '../../store/hooks';
 import { creditsForMinutes, xpForMinutes } from '../../domain/economy';
-import { formatClock, formatInt, formatSC, formatTime } from '../../domain/format';
+import { formatClock, formatInt, formatSC, formatTime, formatWeight } from '../../domain/format';
 import { timerElapsedMs } from '../../domain/timer';
 import type { ActiveTimer } from '../../domain/types';
 import { Button, Card, Field, Input, Segmented, Textarea } from '../ui/primitives';
@@ -35,6 +35,7 @@ function CategoryChips({ value, onChange }: { value: string; onChange: (id: stri
           >
             <span className="size-2 rounded-full" style={{ background: c.color }} aria-hidden />
             {c.name}
+            <span className="tabular text-[11px] text-faint">{formatWeight(c.weightPercent)}</span>
           </button>
         );
       })}
@@ -55,6 +56,7 @@ function FinishDialog({ timer, open, onClose }: { timer: ActiveTimer; open: bool
   const finishTimer = useAppStore((s) => s.finishTimer);
   const discardTimer = useAppStore((s) => s.discardTimer);
   const categories = useActiveCategories();
+  const weightOf = (id: string) => data.categories.find((c) => c.id === id)?.weightPercent ?? 100;
   const [frozenAt] = useState(() => new Date());
   const measuredMs = timerElapsedMs(timer, frozenAt);
   const maxMinutes = Math.max(1, Math.ceil(measuredMs / 60_000));
@@ -164,8 +166,8 @@ function FinishDialog({ timer, open, onClose }: { timer: ActiveTimer; open: bool
           </Field>
           {valid && (
             <p className="rounded-xl border border-line-soft bg-[#111418] px-4 py-3 text-sm text-muted">
-              Belohnung: <span className="tabular font-semibold text-gold">{formatSC(creditsForMinutes(n, data.settings.rates))}</span> ·{' '}
-              <span className="tabular font-semibold text-accent">{formatInt(xpForMinutes(n, data.settings.rates))} XP</span>
+              Belohnung: <span className="tabular font-semibold text-gold">{formatSC(creditsForMinutes(n, data.settings.rates, weightOf(categoryId)))}</span> ·{' '}
+              <span className="tabular font-semibold text-accent">{formatInt(xpForMinutes(n, data.settings.rates, weightOf(categoryId)))} XP</span>
             </p>
           )}
         </form>
@@ -229,10 +231,11 @@ export function LiveTimer() {
             <p className="text-sm text-muted">
               <span className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: activeCategory?.color }} />
               {activeCategory?.name}
+              {activeCategory && <span className="tabular text-faint"> {formatWeight(activeCategory.weightPercent)}</span>}
               {timer.goal && <span className="text-faint"> · {timer.goal}</span>}
             </p>
             <p className="tabular text-xs text-faint">
-              Bisher: <span className="text-gold">{formatSC(creditsForMinutes(minutesSoFar, data.settings.rates))}</span> · <span className="text-accent">{formatInt(xpForMinutes(minutesSoFar, data.settings.rates))} XP</span> · gestartet {formatTime(new Date(timer.startedAt))}
+              Bisher: <span className="text-gold">{formatSC(creditsForMinutes(minutesSoFar, data.settings.rates, activeCategory?.weightPercent))}</span> · <span className="text-accent">{formatInt(xpForMinutes(minutesSoFar, data.settings.rates, activeCategory?.weightPercent))} XP</span> · gestartet {formatTime(new Date(timer.startedAt))}
             </p>
           </div>
         ) : (

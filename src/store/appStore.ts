@@ -72,8 +72,8 @@ interface AppState {
   restoreDefaultShop: () => Result<void>;
   setGoalReward: (id: string | null) => Result<void>;
   // Categories
-  addCategory: (name: string, color: string) => Result<string>;
-  renameCategory: (id: string, name: string, color: string) => Result<void>;
+  addCategory: (name: string, color: string, weightPercent?: number) => Result<string>;
+  renameCategory: (id: string, name: string, color: string, weightPercent?: number) => Result<void>;
   removeCategory: (id: string) => Result<void>;
   // Settings & data
   updateSettings: (patch: Partial<Settings>) => Result<void>;
@@ -212,13 +212,13 @@ export const useAppStore = create<AppState>()((set, get) => {
     restoreDefaultShop: () => apply(cmd.restoreDefaultShop(get().data, { now: now() })),
     setGoalReward: (id) => apply(cmd.setGoalReward(get().data, id)),
 
-    addCategory(name, color) {
-      const result = cmd.addCategory(get().data, name, color);
+    addCategory(name, color, weightPercent) {
+      const result = cmd.addCategory(get().data, name, color, weightPercent);
       if (!result.ok) return result;
       set({ data: result.value.data });
       return ok(result.value.category.id);
     },
-    renameCategory: (id, name, color) => apply(cmd.renameCategory(get().data, id, name, color)),
+    renameCategory: (id, name, color, weightPercent) => apply(cmd.renameCategory(get().data, id, name, color, weightPercent)),
     removeCategory: (id) => apply(cmd.removeCategory(get().data, id)),
 
     updateSettings: (patch) => apply(cmd.updateSettings(get().data, patch)),

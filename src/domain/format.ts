@@ -12,6 +12,9 @@ export const formatInt = (n: number) => intFmt.format(n);
 export const formatDecimal = (n: number) => oneDecimalFmt.format(n);
 export const formatEuro = (cents: number) => euroFmt.format(cents / 100);
 
+/** Subject weighting: 125 → "×1,25" */
+export const formatWeight = (percent: number) => `×${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(percent / 100)}`;
+
 /** 95 → "1 Std. 35 Min.", 45 → "45 Min." */
 export function formatMinutes(minutes: number): string {
   const m = Math.round(minutes);

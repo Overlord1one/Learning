@@ -4,7 +4,9 @@ import { balanceCents, creditsForMinutes } from './economy';
 import { creditedForSession } from './commands';
 import { isValidDayKey } from './dates';
 import { SCHEMA_VERSION } from './types';
-import type { AppData, Result } from './types';
+import type { AppData, CreditTransaction, Result, StudyCategory, StudySession } from './types';
+import { DEFAULT_CATEGORIES, DEFAULT_REWARDS, V1_DEFAULT_PRICES } from './defaults';
+import { createId } from './ids';
 import { fail, ok } from './types';
 
 const iso = z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Ungültiger Zeitstempel');
@@ -30,7 +32,9 @@ const schema = z.object({
     notifications: z.boolean(),
   }),
   categories: z
-    .array(z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean() }))
+    .array(
+      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: int.min(25).max(300) }),
+    )
     .min(1),
   sessions: z.array(
     z.object({
@@ -45,6 +49,7 @@ const schema = z.object({
       description: z.string(),
       taskCompleted: z.boolean().nullable(),
       rates,
+      weightPercent: int.min(25).max(300),
       createdAt: iso,
       updatedAt: iso,
     }),
@@ -133,7 +138,7 @@ export function validateAppData(input: unknown): Result<AppData> {
   for (const s of data.sessions) {
     const earns = data.transactions.filter((t) => t.type === 'session_earn' && t.sessionId === s.id).length;
     if (earns !== 1) return fail('Ungültige Datei: Eine Session wurde nicht genau einmal gutgeschrieben.');
-    if (creditedForSession(data, s.id) !== creditsForMinutes(s.minutes, s.rates)) {
+    if (creditedForSession(data, s.id) !== creditsForMinutes(s.minutes, s.rates, s.weightPercent)) {
       return fail('Ungültige Datei: Gutschriften passen nicht zu den Sessions.');
     }
   }
@@ -153,6 +158,75 @@ export function validateAppData(input: unknown): Result<AppData> {
 
 /** Bring older persisted data up to the current schema. */
 export function migrate(raw: unknown): unknown {
-  // Version 1 is the first released schema – nothing to migrate yet.
-  return raw;
+  let data = raw;
+  if (isRecord(data) && data.schemaVersion === 1) data = migrateV1toV2(data);
+  return data;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * v2: subject weighting, new subjects (Digitalrechner, Vorlesungen,
+ * Video-Schnitt), higher reward prices and a rising level curve.
+ * Existing sessions receive their subject's weighting through traceable
+ * ledger corrections – unless that would make the balance negative.
+ */
+function migrateV1toV2(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  const now = new Date().toISOString();
+  const defaultIndex = (id: string) => {
+    const i = DEFAULT_CATEGORIES.findIndex((c) => c.id === id);
+    return i === -1 ? DEFAULT_CATEGORIES.length : i;
+  };
+
+  // Categories: add weights and the new default subjects, order by priority.
+  const categories: StudyCategory[] = (Array.isArray(data.categories) ? data.categories : []).map((c: StudyCategory) => ({
+    ...c,
+    weightPercent: DEFAULT_CATEGORIES.find((d) => d.id === c.id)?.weightPercent ?? 100,
+  }));
+  for (const d of DEFAULT_CATEGORIES) if (!categories.some((c) => c.id === d.id)) categories.push({ ...d });
+  data.categories = categories.map((c, i) => ({ c, i })).sort((a, b) => defaultIndex(a.c.id) - defaultIndex(b.c.id) || a.i - b.i).map((x) => x.c);
+
+  // Sessions: apply the subject weighting with ledger corrections.
+  const sessions: StudySession[] = Array.isArray(data.sessions) ? data.sessions : [];
+  const transactions: CreditTransaction[] = Array.isArray(data.transactions) ? [...data.transactions] : [];
+  const weightOf = (categoryId: string) => categories.find((c) => c.id === categoryId)?.weightPercent ?? 100;
+  const weighted = sessions.map((s) => ({ ...s, weightPercent: weightOf(s.categoryId) }));
+  const corrections: CreditTransaction[] = [];
+  for (const s of weighted) {
+    const credited = transactions.filter((t) => t.sessionId === s.id).reduce((a, t) => a + t.amountCents, 0);
+    const delta = creditsForMinutes(s.minutes, s.rates, s.weightPercent) - credited;
+    if (delta !== 0) {
+      corrections.push({
+        id: createId('tx'),
+        type: 'session_adjust',
+        amountCents: delta,
+        createdAt: now,
+        sessionId: s.id,
+        purchaseId: null,
+        rewardId: null,
+        note: `Fach-Gewichtung ${s.weightPercent} % angewendet`,
+      });
+    }
+  }
+  if (balanceCents([...transactions, ...corrections]) >= 0) {
+    data.sessions = weighted;
+    data.transactions = [...transactions, ...corrections];
+  } else {
+    data.sessions = sessions.map((s) => ({ ...s, weightPercent: 100 }));
+  }
+
+  // Rewards: untouched default prices move to the new, longer-term goals.
+  if (Array.isArray(data.rewards)) {
+    data.rewards = data.rewards.map((r: { id: string; priceCents: number }) => {
+      const seed = DEFAULT_REWARDS.find((d) => d.id === r.id);
+      return seed && V1_DEFAULT_PRICES[r.id] === r.priceCents ? { ...r, priceCents: seed.priceCents } : r;
+    });
+  }
+
+  if (isRecord(data.settings) && data.settings.defaultCategoryId === 'cat-cs50x') data.settings.defaultCategoryId = 'cat-mathe';
+  data.schemaVersion = 2;
+  return data;
 }

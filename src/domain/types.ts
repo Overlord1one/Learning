@@ -10,7 +10,7 @@
 export type ISODateTime = string; // 2026-10-13T08:15:00.000Z
 export type DayKey = string; // 2026-10-13 (local calendar day)
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Rates that were valid when a session was recorded. Locked per session. */
 export interface RateSnapshot {
@@ -27,6 +27,11 @@ export interface StudyCategory {
   color: string;
   isDefault: boolean;
   archived: boolean;
+  /**
+   * Priority weighting of this subject in percent (100 = normal). A math hour
+   * at 120 % earns 12 SC and 72 XP instead of 10 SC and 60 XP.
+   */
+  weightPercent: number;
 }
 
 export type SessionSource = 'timer' | 'manual';
@@ -46,6 +51,8 @@ export interface StudySession {
   /** null = not specified. */
   taskCompleted: boolean | null;
   rates: RateSnapshot;
+  /** Subject weighting locked in when the session was recorded (or its subject changed). */
+  weightPercent: number;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }

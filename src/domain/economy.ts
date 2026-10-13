@@ -1,6 +1,7 @@
 import type { CreditTransaction, RateSnapshot, StudySession } from './types';
 
 export const CENTS_PER_CREDIT = 100;
+/** XP needed for level 2. Every further level needs 300 XP more than the previous one. */
 export const XP_PER_LEVEL = 300;
 export const MAX_SESSION_MINUTES = 24 * 60;
 
@@ -14,20 +15,23 @@ function roundDiv(numerator: number, denominator: number): number {
   return Math.floor((numerator * 2 + denominator) / (denominator * 2));
 }
 
-/** Centi credits earned for a number of focused minutes. 90 min @ 10 SC/h → 1500. */
-export function creditsForMinutes(minutes: number, rates: RateSnapshot): number {
+/**
+ * Centi credits earned for a number of focused minutes, optionally weighted by
+ * subject priority. 90 min @ 10 SC/h → 1500; with 120 % weighting → 1800.
+ */
+export function creditsForMinutes(minutes: number, rates: RateSnapshot, weightPercent = 100): number {
   if (!Number.isFinite(minutes) || minutes <= 0) return 0;
-  return roundDiv(Math.round(minutes) * rates.creditCentsPerHour, 60);
+  return roundDiv(Math.round(minutes) * rates.creditCentsPerHour * weightPercent, 60 * 100);
 }
 
-/** XP earned for a number of focused minutes. 90 min @ 60 XP/h → 90. */
-export function xpForMinutes(minutes: number, rates: RateSnapshot): number {
+/** XP earned for a number of focused minutes. 90 min @ 60 XP/h → 90; with 120 % → 108. */
+export function xpForMinutes(minutes: number, rates: RateSnapshot, weightPercent = 100): number {
   if (!Number.isFinite(minutes) || minutes <= 0) return 0;
-  return roundDiv(Math.round(minutes) * rates.xpPerHour, 60);
+  return roundDiv(Math.round(minutes) * rates.xpPerHour * weightPercent, 60 * 100);
 }
 
-export const sessionCredits = (s: StudySession) => creditsForMinutes(s.minutes, s.rates);
-export const sessionXp = (s: StudySession) => xpForMinutes(s.minutes, s.rates);
+export const sessionCredits = (s: StudySession) => creditsForMinutes(s.minutes, s.rates, s.weightPercent);
+export const sessionXp = (s: StudySession) => xpForMinutes(s.minutes, s.rates, s.weightPercent);
 
 /** Current spendable balance – the single source of truth is the ledger. */
 export function balanceCents(transactions: readonly CreditTransaction[]): number {
@@ -79,8 +83,20 @@ export function minutesToEarn(missingCents: number, rates: RateSnapshot): number
 // Levels & ranks
 // ---------------------------------------------------------------------------
 
+/**
+ * Total XP needed to reach a level. The curve rises: level 2 needs 300 XP,
+ * level 3 another 600, level 4 another 900 … so early levels come quickly and
+ * later ranks take real commitment. Level L starts at 150 · L · (L − 1) XP.
+ */
+export const xpForLevel = (level: number) => (XP_PER_LEVEL / 2) * Math.max(0, level - 1) * Math.max(1, level);
+
 export function levelForXp(xp: number): number {
-  return Math.floor(Math.max(0, xp) / XP_PER_LEVEL) + 1;
+  const total = Math.max(0, xp);
+  let level = Math.max(1, Math.floor((1 + Math.sqrt(1 + (8 * total) / XP_PER_LEVEL)) / 2));
+  // Correct possible floating point drift around exact thresholds.
+  while (xpForLevel(level + 1) <= total) level++;
+  while (level > 1 && xpForLevel(level) > total) level--;
+  return level;
 }
 
 export interface LevelProgress {
@@ -96,18 +112,18 @@ export interface LevelProgress {
 
 export function levelProgress(xp: number): LevelProgress {
   const level = levelForXp(xp);
-  const levelStartXp = (level - 1) * XP_PER_LEVEL;
-  const nextLevelXp = level * XP_PER_LEVEL;
+  const levelStartXp = xpForLevel(level);
+  const nextLevelXp = xpForLevel(level + 1);
+  const span = nextLevelXp - levelStartXp;
   const xpIntoLevel = Math.max(0, xp) - levelStartXp;
   return {
     level,
     xpIntoLevel,
-    xpForLevel: XP_PER_LEVEL,
+    xpForLevel: span,
     xpToNext: nextLevelXp - Math.max(0, xp),
-    ratio: xpIntoLevel / XP_PER_LEVEL,
+    ratio: xpIntoLevel / span,
     levelStartXp,
     nextLevelXp,
   };
 }
 
-export const xpForLevel = (level: number) => (Math.max(1, level) - 1) * XP_PER_LEVEL;

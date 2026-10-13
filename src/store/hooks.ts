@@ -51,5 +51,6 @@ export function useReducedMotion(): boolean {
 
 export const useActiveCategories = () => {
   const categories = useAppStore((s) => s.data.categories);
-  return useMemo(() => categories.filter((c) => !c.archived), [categories]);
+  // Highest priority (weighting) first; equal weights keep their stored order.
+  return useMemo(() => categories.filter((c) => !c.archived).sort((a, b) => b.weightPercent - a.weightPercent), [categories]);
 };

@@ -31,7 +31,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
 
   const live = reward ? (data.rewards.find((r) => r.id === reward.id) ?? reward) : null;
   const item = live ? rewardProgress(data, live) : null;
-  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.minutesNeeded, new Date()) : null), [data.sessions, item]);
+  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.missingCents, new Date()) : null), [data.sessions, item]);
   const history = live ? data.purchases.filter((p) => p.rewardId === live.id).sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt)) : [];
 
   return (

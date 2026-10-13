@@ -199,18 +199,21 @@ export type Projection =
   | { kind: 'estimate'; averageDailyMinutes: number; days: number; date: Date };
 
 /**
- * Estimate when `minutesNeeded` will be studied, based on the recent average.
- * Requires a minimum amount of history – otherwise no date is invented.
+ * Estimate when `missingCents` will be earned, based on the credits earned per
+ * day recently (so subject weighting is reflected). Requires a minimum amount
+ * of history – otherwise no date is invented.
  */
-export function projectCompletion(sessions: readonly StudySession[], minutesNeeded: number, now: Date): Projection {
-  if (minutesNeeded <= 0) return { kind: 'reached' };
+export function projectCompletion(sessions: readonly StudySession[], missingCents: number, now: Date): Projection {
+  if (missingCents <= 0) return { kind: 'reached' };
   const today = dayKey(now);
   const from = shiftDayKey(today, -(PROJECTION_WINDOW_DAYS - 1));
   const recent = sessions.filter((s) => s.date >= from && s.date <= today);
   const activeDays = new Set(recent.map((s) => s.date)).size;
   if (activeDays < PROJECTION_MIN_ACTIVE_DAYS) return { kind: 'insufficient', activeDays };
   const averageDailyMinutes = recent.reduce((a, s) => a + s.minutes, 0) / PROJECTION_WINDOW_DAYS;
-  const days = Math.ceil(minutesNeeded / averageDailyMinutes);
+  const averageDailyCents = recent.reduce((a, s) => a + sessionCredits(s), 0) / PROJECTION_WINDOW_DAYS;
+  if (averageDailyCents <= 0) return { kind: 'insufficient', activeDays };
+  const days = Math.ceil(missingCents / averageDailyCents);
   return { kind: 'estimate', averageDailyMinutes, days, date: addDays(parseDayKey(today), days) };
 }
 

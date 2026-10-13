@@ -60,6 +60,14 @@ export function activePurchaseFor(data: AppData, rewardId: string) {
   return data.purchases.find((p) => p.rewardId === rewardId && p.refundedAt === null) ?? null;
 }
 
+export function categoryWeight(data: AppData, categoryId: string): number {
+  return data.categories.find((c) => c.id === categoryId)?.weightPercent ?? 100;
+}
+
+function validWeight(weight: number): boolean {
+  return Number.isInteger(weight) && weight >= 25 && weight <= 300;
+}
+
 function minutesOnDay(data: AppData, date: string, excludeId?: string): number {
   let sum = 0;
   for (const s of data.sessions) if (s.date === date && s.id !== excludeId) sum += s.minutes;
@@ -134,10 +142,11 @@ export function addSession(data: AppData, input: SessionInput, { now }: Ctx): Re
     description: (input.description ?? '').trim(),
     taskCompleted: input.taskCompleted ?? null,
     rates: { ...data.settings.rates },
+    weightPercent: categoryWeight(data, input.categoryId),
     createdAt: iso,
     updatedAt: iso,
   };
-  const amount = creditsForMinutes(session.minutes, session.rates);
+  const amount = creditsForMinutes(session.minutes, session.rates, session.weightPercent);
   const transactions = data.transactions.some((t) => t.type === 'session_earn' && t.sessionId === session.id)
     ? data.transactions
     : [...data.transactions, txn('session_earn', amount, now, { sessionId: session.id }, `${session.minutes} Min. gelernt`)];
@@ -158,12 +167,14 @@ export function updateSession(data: AppData, id: string, patch: SessionPatch, { 
     ...patch,
     goal: (patch.goal ?? current.goal).trim(),
     description: (patch.description ?? current.description).trim(),
+    // Moving a session to another subject applies that subject's weighting.
+    weightPercent: patch.categoryId && patch.categoryId !== current.categoryId ? categoryWeight(data, patch.categoryId) : current.weightPercent,
     updatedAt: now.toISOString(),
   };
   const error = validateSessionFields(data, next, now, id);
   if (error) return fail(error);
 
-  const target = creditsForMinutes(next.minutes, next.rates);
+  const target = creditsForMinutes(next.minutes, next.rates, next.weightPercent);
   const delta = target - creditedForSession(data, id);
   if (delta < 0 && balanceCents(data.transactions) + delta < 0) return fail(NEGATIVE_BALANCE_HINT);
 
@@ -440,17 +451,18 @@ export function setGoalReward(data: AppData, rewardId: string | null): Result<Ap
 // Categories
 // ---------------------------------------------------------------------------
 
-export function addCategory(data: AppData, name: string, color: string): Result<{ data: AppData; category: StudyCategory }> {
+export function addCategory(data: AppData, name: string, color: string, weightPercent = 100): Result<{ data: AppData; category: StudyCategory }> {
   const trimmed = name.trim();
+  if (!validWeight(weightPercent)) return fail('Die Gewichtung ist ungültig.');
   if (!trimmed) return fail('Bitte gib einen Namen für die Kategorie ein.');
   if (trimmed.length > 40) return fail('Der Name ist zu lang (max. 40 Zeichen).');
   const existing = data.categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   if (existing && !existing.archived) return fail('Diese Kategorie gibt es bereits.');
   if (existing) {
-    const category = { ...existing, archived: false, color };
+    const category = { ...existing, archived: false, color, weightPercent };
     return ok({ data: { ...data, categories: data.categories.map((c) => (c.id === existing.id ? category : c)) }, category });
   }
-  const category: StudyCategory = { id: createId('cat'), name: trimmed, color, isDefault: false, archived: false };
+  const category: StudyCategory = { id: createId('cat'), name: trimmed, color, isDefault: false, archived: false, weightPercent };
   return ok({ data: { ...data, categories: [...data.categories, category] }, category });
 }
 
@@ -472,13 +484,18 @@ export function removeCategory(data: AppData, id: string): Result<AppData> {
   return ok({ ...data, categories, settings });
 }
 
-export function renameCategory(data: AppData, id: string, name: string, color: string): Result<AppData> {
+/** Edit a subject. A new weighting applies to future sessions only. */
+export function renameCategory(data: AppData, id: string, name: string, color: string, weightPercent?: number): Result<AppData> {
   const trimmed = name.trim();
+  if (weightPercent !== undefined && !validWeight(weightPercent)) return fail('Die Gewichtung ist ungültig.');
   if (!trimmed) return fail('Bitte gib einen Namen ein.');
   if (data.categories.some((c) => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase() && !c.archived)) {
     return fail('Diese Kategorie gibt es bereits.');
   }
-  return ok({ ...data, categories: data.categories.map((c) => (c.id === id ? { ...c, name: trimmed, color } : c)) });
+  return ok({
+    ...data,
+    categories: data.categories.map((c) => (c.id === id ? { ...c, name: trimmed, color, weightPercent: weightPercent ?? c.weightPercent } : c)),
+  });
 }
 
 // ---------------------------------------------------------------------------
