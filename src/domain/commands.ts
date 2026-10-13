@@ -65,8 +65,8 @@ export function categoryWeight(data: AppData, categoryId: string): number {
 }
 
 function validWeight(weight: number): boolean {
-  // Half percent steps are allowed (e.g. 37,5 % for lectures).
-  return Number.isInteger(weight * 2) && weight >= 25 && weight <= 300;
+  // Quarter percent steps are allowed (e.g. 18,75 % for lectures).
+  return Number.isInteger(weight * 4) && weight >= 10 && weight <= 300;
 }
 
 function validWeeklyTarget(minutes: number): boolean {

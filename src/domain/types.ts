@@ -10,7 +10,7 @@
 export type ISODateTime = string; // 2026-10-13T08:15:00.000Z
 export type DayKey = string; // 2026-10-13 (local calendar day)
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Rates that were valid when a session was recorded. Locked per session. */
 export interface RateSnapshot {

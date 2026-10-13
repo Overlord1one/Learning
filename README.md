@@ -44,7 +44,7 @@ React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide ·
 | XP | Minuten × Rate × Gewichtung / 60 | 60 XP pro Stunde bei ×1 |
 | Level | Level L beginnt bei 150 · L · (L − 1) XP | Level 2 bei 300 XP, Level 5 bei 3.000, Level 10 bei 13.500 |
 
-**Fach-Gewichtung (Priorität):** Mathematik ×1,5 (8 Schulstunden pro Woche, doppelt so viele wie die anderen Fächer) · Programmieren (CS50x, CS50P) ×1,2 · Elektrotechnik ×1 · Digitalrechner ×1 · Video-Schnitt (Social Media) ×0,5 · Sonstiges ×0,5 · Vorlesungen ×0,375. Die Gewichtung wird pro Session gespeichert; spätere Änderungen gelten nur für neue Sessions.
+**Fach-Gewichtung (Priorität):** Mathematik ×1,5 (8 Schulstunden pro Woche, doppelt so viele wie die anderen Fächer) · Programmieren (CS50x, CS50P) ×1,2 · Elektrotechnik ×1 · Digitalrechner ×1 · Video-Schnitt (Social Media) ×0,5 · Sonstiges ×0,5 · Vorlesungen ×0,1875. Die Gewichtung wird pro Session gespeichert; spätere Änderungen gelten nur für neue Sessions.
 
 **Wochenziele:** optional pro Fach unter *Einstellungen → Lernkategorien & Wochenziele*; sobald eines gesetzt ist, erscheint der Wochenplan auf dem Dashboard.
 

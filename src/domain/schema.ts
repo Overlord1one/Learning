@@ -20,7 +20,7 @@ import { fail, ok } from './types';
 const iso = z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Ungültiger Zeitstempel');
 const dayKeySchema = z.string().refine(isValidDayKey, 'Ungültiges Datum');
 const int = z.number().int();
-const weight = z.number().min(25).max(300).refine((v) => Number.isInteger(v * 2), 'Ungültige Gewichtung');
+const weight = z.number().min(10).max(300).refine((v) => Number.isInteger(v * 4), 'Ungültige Gewichtung');
 
 const rates = z.object({ creditCentsPerHour: int.min(1), xpPerHour: int.min(1) });
 
@@ -171,7 +171,9 @@ export function migrate(raw: unknown): unknown {
   if (isRecord(data) && data.schemaVersion === 1) data = migrateV1toV2(data);
   if (isRecord(data) && data.schemaVersion === 2) data = migrateV2toV3(data);
   if (isRecord(data) && data.schemaVersion === 3) data = migrateV3toV4(data);
-  if (isRecord(data) && data.schemaVersion === 4) data = migrateV4toV5(data);
+  // v5: lectures worth half (×0,75 → ×0,375); v6: half again (→ ×0,1875).
+  if (isRecord(data) && data.schemaVersion === 4) data = changeDefaultWeight(data, 'cat-vorlesungen', 75, 37.5, 5);
+  if (isRecord(data) && data.schemaVersion === 5) data = changeDefaultWeight(data, 'cat-vorlesungen', 37.5, 18.75, 6);
   return data;
 }
 
@@ -262,21 +264,23 @@ function migrateV3toV4(raw: Record<string, unknown>): unknown {
   return data;
 }
 
-/** v5: lectures are worth half as much (×0,75 → ×0,375). */
-function migrateV4toV5(raw: Record<string, unknown>): unknown {
+/**
+ * Move a default subject from an old default weight to a new one. Sessions
+ * recorded with the old weight are re-weighted through ledger corrections.
+ * Weights the user changed themselves stay untouched.
+ */
+function changeDefaultWeight(raw: Record<string, unknown>, categoryId: string, from: number, to: number, version: number): unknown {
   const data = structuredClone(raw) as Record<string, any>;
-  const OLD = 75;
-  const NEW = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-vorlesungen')!.weightPercent;
   let changed = false;
   if (Array.isArray(data.categories)) {
     data.categories = data.categories.map((c: StudyCategory) => {
-      if (c.id !== 'cat-vorlesungen' || c.weightPercent !== OLD) return c;
+      if (c.id !== categoryId || c.weightPercent !== from) return c;
       changed = true;
-      return { ...c, weightPercent: NEW };
+      return { ...c, weightPercent: to };
     });
   }
-  if (changed) reweightSessions(data, (s) => (s.categoryId === 'cat-vorlesungen' && s.weightPercent === OLD ? NEW : s.weightPercent));
-  data.schemaVersion = 5;
+  if (changed) reweightSessions(data, (s) => (s.categoryId === categoryId && s.weightPercent === from ? to : s.weightPercent));
+  data.schemaVersion = version;
   return data;
 }
 

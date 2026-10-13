@@ -385,7 +385,7 @@ describe('migration v1 → v2', () => {
     raw.sessions[0].categoryId = 'cat-mathe';
     raw.transactions[0].sessionId = raw.sessions[0].id;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(5);
+    expect(migrated.schemaVersion).toBe(6);
     expect(migrated.categories.map((c) => c.id)).toContain('cat-digitalrechner');
     expect(migrated.categories.map((c) => c.id)).toContain('cat-video');
     expect(migrated.sessions[0]!.weightPercent).toBe(150);
@@ -414,7 +414,7 @@ describe('school-hour weighting (v4)', () => {
     expect(w('cat-cs50x')).toBe(120);
     expect(w('cat-etechnik')).toBe(100);
     expect(w('cat-digitalrechner')).toBe(100);
-    expect(w('cat-vorlesungen')).toBe(37.5);
+    expect(w('cat-vorlesungen')).toBe(18.75);
     expect(w('cat-video')).toBe(50);
     expect(data.settings.dailyGoalMinutes).toBe(120);
     // No weekly targets by default – the weekly plan card stays hidden.
@@ -438,7 +438,7 @@ describe('school-hour weighting (v4)', () => {
     raw.rewards.find((r: { id: string }) => r.id === 'rw-mousepad').priceCents = 25000;
     raw.rewards.find((r: { id: string }) => r.id === 'rw-dt900').priceCents = 12345; // customised
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(5);
+    expect(migrated.schemaVersion).toBe(6);
     expect(migrated.categories.find((c) => c.id === 'cat-mathe')!.weightPercent).toBe(150);
     expect(migrated.categories.every((c) => c.weeklyTargetMinutes === 0)).toBe(true);
     expect(migrated.sessions[0]!.weightPercent).toBe(150);
@@ -449,29 +449,33 @@ describe('school-hour weighting (v4)', () => {
   });
 });
 
-describe('lectures at half value (v5)', () => {
-  it('a 90-minute lecture earns 5,625 SC – 27 lectures for the mousepad', () => {
-    expect(creditsForMinutes(90, DEFAULT_RATES, 37.5)).toBe(563); // 5,63 SC (rounded to whole cents)
-    expect(xpForMinutes(90, DEFAULT_RATES, 37.5)).toBe(34);
+describe('lectures as a small bonus (v6)', () => {
+  it('a 90-minute lecture earns 2,81 SC – 54 lectures for the mousepad', () => {
+    expect(creditsForMinutes(90, DEFAULT_RATES, 18.75)).toBe(281);
+    expect(xpForMinutes(90, DEFAULT_RATES, 18.75)).toBe(17);
     let data = createInitialData(NOW);
-    for (let i = 0; i < 27; i++) {
+    for (let i = 0; i < 54; i++) {
       data = unwrap(addSession(data, { categoryId: 'cat-vorlesungen', minutes: 90, date: shiftDayKey('2026-10-13', -Math.floor(i / 10)), source: 'manual' }, ctx)).data;
     }
     expect(rewardProgress(data, data.rewards.find((r) => r.id === 'rw-mousepad')!).status).toBe('freischaltbar');
     expect(validateAppData(JSON.parse(JSON.stringify(data))).ok).toBe(true);
   });
 
-  it('migrates v4 lectures from ×0,75 to ×0,375 with a ledger correction', () => {
-    let v5 = unwrap(addSession(createInitialData(NOW), { categoryId: 'cat-vorlesungen', minutes: 90, date: '2026-10-13', source: 'manual' }, ctx)).data;
-    v5 = unwrap(addSession(v5, { categoryId: 'cat-mathe', minutes: 60, date: '2026-10-13', source: 'manual' }, ctx)).data;
-    const raw = JSON.parse(JSON.stringify(v5));
-    raw.schemaVersion = 4;
-    raw.categories.find((c: { id: string }) => c.id === 'cat-vorlesungen').weightPercent = 75;
-    raw.sessions[0].weightPercent = 75;
-    raw.transactions[0].amountCents = 1125; // 11,25 SC under v4
+  it.each([
+    [4, 75, 1125],
+    [5, 37.5, 563],
+  ])('migrates v%i lectures (×%f) to ×0,1875 with a ledger correction', (version, oldWeight, oldCents) => {
+    let current = unwrap(addSession(createInitialData(NOW), { categoryId: 'cat-vorlesungen', minutes: 90, date: '2026-10-13', source: 'manual' }, ctx)).data;
+    current = unwrap(addSession(current, { categoryId: 'cat-mathe', minutes: 60, date: '2026-10-13', source: 'manual' }, ctx)).data;
+    const raw = JSON.parse(JSON.stringify(current));
+    raw.schemaVersion = version;
+    raw.categories.find((c: { id: string }) => c.id === 'cat-vorlesungen').weightPercent = oldWeight;
+    raw.sessions[0].weightPercent = oldWeight;
+    raw.transactions[0].amountCents = oldCents;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.categories.find((c) => c.id === 'cat-vorlesungen')!.weightPercent).toBe(37.5);
-    expect(migrated.sessions[0]!.weightPercent).toBe(37.5);
-    expect(balanceCents(migrated.transactions)).toBe(563 + 1500);
+    expect(migrated.schemaVersion).toBe(6);
+    expect(migrated.categories.find((c) => c.id === 'cat-vorlesungen')!.weightPercent).toBe(18.75);
+    expect(migrated.sessions[0]!.weightPercent).toBe(18.75);
+    expect(balanceCents(migrated.transactions)).toBe(281 + 1500);
   });
 });
