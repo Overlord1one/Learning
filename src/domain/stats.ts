@@ -134,14 +134,6 @@ export function weeklyPlan(data: AppData, date: Date): WeeklyPlan {
   };
 }
 
-/** Number of weeks in which every weekly target was reached. */
-export function completedPlanWeeks(data: AppData): number {
-  const weeks = new Set(data.sessions.map((s) => dayKey(startOfWeek(parseDayKey(s.date)))));
-  let count = 0;
-  for (const w of weeks) if (weeklyPlan(data, parseDayKey(w)).completed) count++;
-  return count;
-}
-
 // ---------------------------------------------------------------------------
 // Player
 // ---------------------------------------------------------------------------

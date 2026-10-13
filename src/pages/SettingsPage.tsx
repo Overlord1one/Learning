@@ -204,7 +204,7 @@ function EconomySection() {
       </div>
       <p className="mt-4 rounded-xl border border-line-soft bg-[#111418] px-4 py-3 text-[13px] leading-relaxed text-muted">
         Neue Raten gelten nur für <span className="text-fg">zukünftige</span> Sessions. Jede Session speichert die Raten, mit denen sie erfasst wurde – auch beim späteren Bearbeiten.
-        Vergangene Freischaltungen behalten ihren damaligen Preis. Pro Fach wird die Rate zusätzlich mit der Gewichtung multipliziert (z. B. Mathematik ×1,25).
+        Vergangene Freischaltungen behalten ihren damaligen Preis. Pro Fach wird die Rate zusätzlich mit der Gewichtung multipliziert (z. B. Mathematik ×1,5).
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="primary" disabled={!changed} onClick={() => setConfirm(true)}>

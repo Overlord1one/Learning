@@ -5,7 +5,15 @@ import { creditedForSession } from './commands';
 import { isValidDayKey } from './dates';
 import { SCHEMA_VERSION } from './types';
 import type { AppData, CreditTransaction, Result, StudyCategory, StudySession } from './types';
-import { DEFAULT_CATEGORIES, DEFAULT_REWARDS, V1_DEFAULT_PRICES, V2_DEFAULT_PRICES } from './defaults';
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_REWARDS,
+  V1_DEFAULT_PRICES,
+  V2_DEFAULT_PRICES,
+  V3_DEFAULT_PRICES,
+  V3_DEFAULT_WEEKLY_TARGETS,
+  V3_DEFAULT_WEIGHTS,
+} from './defaults';
 import { createId } from './ids';
 import { fail, ok } from './types';
 
@@ -161,6 +169,7 @@ export function migrate(raw: unknown): unknown {
   let data = raw;
   if (isRecord(data) && data.schemaVersion === 1) data = migrateV1toV2(data);
   if (isRecord(data) && data.schemaVersion === 2) data = migrateV2toV3(data);
+  if (isRecord(data) && data.schemaVersion === 3) data = migrateV3toV4(data);
   return data;
 }
 
@@ -187,37 +196,15 @@ function migrateV2toV3(raw: Record<string, unknown>): unknown {
   return data;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 /**
- * v2: subject weighting, new subjects (Digitalrechner, Vorlesungen,
- * Video-Schnitt), higher reward prices and a rising level curve.
- * Existing sessions receive their subject's weighting through traceable
- * ledger corrections – unless that would make the balance negative.
+ * Give sessions a new weighting and book the credit difference as traceable
+ * corrections. Does nothing (returns false) if the balance would turn negative.
  */
-function migrateV1toV2(raw: Record<string, unknown>): unknown {
-  const data = structuredClone(raw) as Record<string, any>;
-  const now = new Date().toISOString();
-  const defaultIndex = (id: string) => {
-    const i = DEFAULT_CATEGORIES.findIndex((c) => c.id === id);
-    return i === -1 ? DEFAULT_CATEGORIES.length : i;
-  };
-
-  // Categories: add weights and the new default subjects, order by priority.
-  const categories: StudyCategory[] = (Array.isArray(data.categories) ? data.categories : []).map((c: StudyCategory) => ({
-    ...c,
-    weightPercent: DEFAULT_CATEGORIES.find((d) => d.id === c.id)?.weightPercent ?? 100,
-  }));
-  for (const d of DEFAULT_CATEGORIES) if (!categories.some((c) => c.id === d.id)) categories.push({ ...d });
-  data.categories = categories.map((c, i) => ({ c, i })).sort((a, b) => defaultIndex(a.c.id) - defaultIndex(b.c.id) || a.i - b.i).map((x) => x.c);
-
-  // Sessions: apply the subject weighting with ledger corrections.
+function reweightSessions(data: Record<string, any>, weightFor: (s: StudySession) => number): boolean {
   const sessions: StudySession[] = Array.isArray(data.sessions) ? data.sessions : [];
-  const transactions: CreditTransaction[] = Array.isArray(data.transactions) ? [...data.transactions] : [];
-  const weightOf = (categoryId: string) => categories.find((c) => c.id === categoryId)?.weightPercent ?? 100;
-  const weighted = sessions.map((s) => ({ ...s, weightPercent: weightOf(s.categoryId) }));
+  const transactions: CreditTransaction[] = Array.isArray(data.transactions) ? data.transactions : [];
+  const now = new Date().toISOString();
+  const weighted = sessions.map((s) => ({ ...s, weightPercent: weightFor(s) }));
   const corrections: CreditTransaction[] = [];
   for (const s of weighted) {
     const credited = transactions.filter((t) => t.sessionId === s.id).reduce((a, t) => a + t.amountCents, 0);
@@ -235,10 +222,73 @@ function migrateV1toV2(raw: Record<string, unknown>): unknown {
       });
     }
   }
-  if (balanceCents([...transactions, ...corrections]) >= 0) {
-    data.sessions = weighted;
-    data.transactions = [...transactions, ...corrections];
-  } else {
+  if (balanceCents([...transactions, ...corrections]) < 0) return false;
+  data.sessions = weighted;
+  data.transactions = [...transactions, ...corrections];
+  return true;
+}
+
+/**
+ * v4: weighting based on school hours (math ×1.5), no default weekly targets,
+ * prices and daily goal back to the v2 level. Untouched defaults move along;
+ * sessions recorded with an old default weight get the new one.
+ */
+function migrateV3toV4(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  const categories: StudyCategory[] = Array.isArray(data.categories) ? data.categories : [];
+  const oldWeights = new Map<string, number>();
+  data.categories = categories.map((c) => {
+    const seed = DEFAULT_CATEGORIES.find((d) => d.id === c.id);
+    if (!seed) return c;
+    oldWeights.set(c.id, c.weightPercent);
+    return {
+      ...c,
+      weightPercent: V3_DEFAULT_WEIGHTS[c.id] === c.weightPercent ? seed.weightPercent : c.weightPercent,
+      weeklyTargetMinutes: V3_DEFAULT_WEEKLY_TARGETS[c.id] === c.weeklyTargetMinutes ? 0 : c.weeklyTargetMinutes,
+    };
+  });
+  const current = (id: string) => (data.categories as StudyCategory[]).find((c) => c.id === id)?.weightPercent ?? 100;
+  reweightSessions(data, (s) => (V3_DEFAULT_WEIGHTS[s.categoryId] === s.weightPercent && oldWeights.get(s.categoryId) === s.weightPercent ? current(s.categoryId) : s.weightPercent));
+  if (Array.isArray(data.rewards)) {
+    data.rewards = data.rewards.map((r: { id: string; priceCents: number }) => {
+      const seed = DEFAULT_REWARDS.find((d) => d.id === r.id);
+      return seed && V3_DEFAULT_PRICES[r.id] === r.priceCents ? { ...r, priceCents: seed.priceCents } : r;
+    });
+  }
+  if (isRecord(data.settings) && data.settings.dailyGoalMinutes === 240) data.settings.dailyGoalMinutes = 120;
+  data.schemaVersion = 4;
+  return data;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * v2: subject weighting, new subjects (Digitalrechner, Vorlesungen,
+ * Video-Schnitt), higher reward prices and a rising level curve.
+ * Existing sessions receive their subject's weighting through traceable
+ * ledger corrections – unless that would make the balance negative.
+ */
+function migrateV1toV2(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  const defaultIndex = (id: string) => {
+    const i = DEFAULT_CATEGORIES.findIndex((c) => c.id === id);
+    return i === -1 ? DEFAULT_CATEGORIES.length : i;
+  };
+
+  // Categories: add weights and the new default subjects, order by priority.
+  const categories: StudyCategory[] = (Array.isArray(data.categories) ? data.categories : []).map((c: StudyCategory) => ({
+    ...c,
+    weightPercent: DEFAULT_CATEGORIES.find((d) => d.id === c.id)?.weightPercent ?? 100,
+  }));
+  for (const d of DEFAULT_CATEGORIES) if (!categories.some((c) => c.id === d.id)) categories.push({ ...d });
+  data.categories = categories.map((c, i) => ({ c, i })).sort((a, b) => defaultIndex(a.c.id) - defaultIndex(b.c.id) || a.i - b.i).map((x) => x.c);
+
+  // Sessions: apply the subject weighting with ledger corrections.
+  const weightOf = (categoryId: string) => categories.find((c) => c.id === categoryId)?.weightPercent ?? 100;
+  const sessions: StudySession[] = Array.isArray(data.sessions) ? data.sessions : [];
+  if (!reweightSessions(data, (s) => weightOf(s.categoryId))) {
     data.sessions = sessions.map((s) => ({ ...s, weightPercent: 100 }));
   }
 

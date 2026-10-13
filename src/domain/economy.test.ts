@@ -85,7 +85,7 @@ describe('credit & XP formulas', () => {
 
   it('computes study time needed for a reward', () => {
     expect(minutesToEarn(4000, DEFAULT_RATES)).toBe(240);
-    expect(minutesToEarn(25000, DEFAULT_RATES)).toBe(1500); // mousepad: 25 h
+    expect(minutesToEarn(15000, DEFAULT_RATES)).toBe(900); // mousepad: 15 h
     expect(minutesToEarn(17500, DEFAULT_RATES)).toBe(1050);
     expect(minutesToEarn(15000, DEFAULT_RATES)).toBe(900); // 150 SC → 15 h
   });
@@ -101,7 +101,7 @@ describe('acceptance', () => {
     const shop = data.rewards.filter((r) => !r.preOwned);
     expect(shop).toHaveLength(5);
     expect(shop.every((r) => rewardProgress(data, r).status === 'gesperrt')).toBe(true);
-    expect(shop.reduce((a, r) => a + r.priceCents, 0)).toBe(645000);
+    expect(shop.reduce((a, r) => a + r.priceCents, 0)).toBe(455000);
     expect(data.rewards.find((r) => r.preOwned)?.name).toMatch(/ROCCAT/);
     expect(evaluateAchievements(data, NOW).some((a) => a.unlocked)).toBe(false);
   });
@@ -120,26 +120,26 @@ describe('acceptance', () => {
     expect(p.level).toBe(2);
   });
 
-  it('250 SC unlock the mousepad, deduct exactly 250 SC and leave XP untouched', () => {
-    let data = log(createInitialData(NOW), 1500);
+  it('150 SC unlock the mousepad, deduct exactly 150 SC and leave XP untouched', () => {
+    let data = log(createInitialData(NOW), 900);
     const before = playerSnapshot(data);
     expect(rewardProgress(data, data.rewards.find((r) => r.id === 'rw-mousepad')!).status).toBe('freischaltbar');
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     const after = playerSnapshot(data);
-    expect(after.balanceCents).toBe(before.balanceCents - 25000);
+    expect(after.balanceCents).toBe(before.balanceCents - 15000);
     expect(after.xp).toBe(before.xp);
     expect(after.level).toBe(before.level);
     expect(rewardProgress(data, data.rewards.find((r) => r.id === 'rw-mousepad')!).status).toBe('freigeschaltet');
   });
 
   it('insufficient credits cannot unlock an item', () => {
-    const data = log(createInitialData(NOW), 1499);
+    const data = log(createInitialData(NOW), 899);
     const r = purchaseReward(data, 'rw-mousepad', ctx);
     expect(r.ok).toBe(false);
   });
 
   it('cannot unlock the same reward twice', () => {
-    let data = log(createInitialData(NOW), 1500);
+    let data = log(createInitialData(NOW), 900);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     expect(purchaseReward(data, 'rw-mousepad', ctx).ok).toBe(false);
   });
@@ -189,22 +189,22 @@ describe('acceptance', () => {
   });
 
   it('never allows a negative balance through edits or deletes', () => {
-    let data = log(createInitialData(NOW), 1500);
+    let data = log(createInitialData(NOW), 900);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     const id = data.sessions[0]!.id;
     expect(deleteSession(data, id, ctx).ok).toBe(false);
     expect(updateSession(data, id, { minutes: 100 }, ctx).ok).toBe(false);
     data = unwrap(refundPurchase(data, data.purchases[0]!.id, ctx));
-    expect(balanceCents(data.transactions)).toBe(25000);
+    expect(balanceCents(data.transactions)).toBe(15000);
     expect(deleteSession(data, id, ctx).ok).toBe(true);
   });
 
   it('purchases keep their historic price when the reward price changes', () => {
-    let data = log(createInitialData(NOW), 1500);
+    let data = log(createInitialData(NOW), 900);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     data = { ...data, rewards: data.rewards.map((r) => (r.id === 'rw-mousepad' ? { ...r, priceCents: 9900 } : r)) };
     data = unwrap(refundPurchase(data, data.purchases[0]!.id, ctx));
-    expect(balanceCents(data.transactions)).toBe(25000);
+    expect(balanceCents(data.transactions)).toBe(15000);
   });
 
   it('rate changes only affect new sessions', () => {
@@ -229,7 +229,7 @@ describe('acceptance', () => {
   });
 
   it('survives a JSON round trip (persistence) with validation', () => {
-    let data = log(createInitialData(NOW), 1500);
+    let data = log(createInitialData(NOW), 900);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     const restored = unwrap(validateAppData(JSON.parse(JSON.stringify(data))));
     expect(restored).toEqual(data);
@@ -316,7 +316,7 @@ describe('stats & projections', () => {
   });
 
   it('falls back to the cheapest locked reward as goal', () => {
-    let data = log(createInitialData(NOW), 1500);
+    let data = log(createInitialData(NOW), 900);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     expect(goalReward(data)?.id).toBe('rw-mx-master');
   });
@@ -337,10 +337,10 @@ describe('subject weighting (v2)', () => {
     expect(data.categories.find((c) => c.id === 'cat-video')?.weightPercent).toBe(50);
   });
 
-  it('90 minutes of math earn 18,75 SC and 113 XP', () => {
+  it('90 minutes of math earn 22,5 SC and 135 XP', () => {
     const data = unwrap(addSession(createInitialData(NOW), { categoryId: 'cat-mathe', minutes: 90, date: '2026-10-13', source: 'manual' }, ctx)).data;
-    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 1875, xp: 113 });
-    expect(xpForMinutes(60, DEFAULT_RATES, 125)).toBe(75);
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 2250, xp: 135 });
+    expect(xpForMinutes(60, DEFAULT_RATES, 150)).toBe(90);
     expect(creditsForMinutes(60, DEFAULT_RATES, 50)).toBe(500);
   });
 
@@ -348,16 +348,16 @@ describe('subject weighting (v2)', () => {
     let data = unwrap(addSession(createInitialData(NOW), { categoryId: 'cat-video', minutes: 60, date: '2026-10-13', source: 'manual' }, ctx)).data;
     expect(balanceCents(data.transactions)).toBe(500);
     data = unwrap(updateSession(data, data.sessions[0]!.id, { categoryId: 'cat-mathe' }, ctx));
-    expect(balanceCents(data.transactions)).toBe(1250);
+    expect(balanceCents(data.transactions)).toBe(1500);
     expect(validateAppData(JSON.parse(JSON.stringify(data))).ok).toBe(true);
   });
 
   it('a later weighting change does not alter recorded sessions', () => {
     let data = unwrap(addSession(createInitialData(NOW), { categoryId: 'cat-mathe', minutes: 60, date: '2026-10-13', source: 'manual' }, ctx)).data;
-    data = unwrap(renameCategory(data, 'cat-mathe', 'Mathematik', '#199e70', 150));
-    expect(balanceCents(data.transactions)).toBe(1250);
+    data = unwrap(renameCategory(data, 'cat-mathe', 'Mathematik', '#199e70', 200));
+    expect(balanceCents(data.transactions)).toBe(1500);
     data = unwrap(updateSession(data, data.sessions[0]!.id, { minutes: 120 }, ctx));
-    expect(balanceCents(data.transactions)).toBe(2500);
+    expect(balanceCents(data.transactions)).toBe(3000);
   });
 
   it('awards Mathe-Woche for 8 hours of math in one week', () => {
@@ -391,13 +391,13 @@ describe('migration v1 → v2', () => {
     raw.sessions[0].categoryId = 'cat-mathe';
     raw.transactions[0].sessionId = raw.sessions[0].id;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.categories.map((c) => c.id)).toContain('cat-digitalrechner');
     expect(migrated.categories.map((c) => c.id)).toContain('cat-video');
-    expect(migrated.sessions[0]!.weightPercent).toBe(125);
-    expect(balanceCents(migrated.transactions)).toBe(1875); // 15 SC + 3,75 SC correction
+    expect(migrated.sessions[0]!.weightPercent).toBe(150);
+    expect(balanceCents(migrated.transactions)).toBe(2250); // 15 SC + 7,5 SC correction
     expect(migrated.transactions.at(-1)!.type).toBe('session_adjust');
-    expect(migrated.rewards.find((r) => r.id === 'rw-flexispot')!.priceCents).toBe(350000);
+    expect(migrated.rewards.find((r) => r.id === 'rw-flexispot')!.priceCents).toBe(250000);
     expect(migrated.settings.defaultCategoryId).toBe('cat-mathe');
   });
 
@@ -412,42 +412,45 @@ describe('migration v1 → v2', () => {
   });
 });
 
-describe('weekly plan (v3)', () => {
-  it('plans 8 h math and 4 h for every other subject – 28 h in total', () => {
-    const plan = weeklyPlan(createInitialData(NOW), NOW);
-    expect(plan.items[0]!.category.id).toBe('cat-mathe');
-    expect(plan.items[0]!.targetMinutes).toBe(480);
-    expect(plan.totalTargetMinutes).toBe(28 * 60);
-    expect(plan.completed).toBe(false);
+describe('school-hour weighting (v4)', () => {
+  it('weights math highest because it has twice the school hours', () => {
+    const data = createInitialData(NOW);
+    const w = (id: string) => data.categories.find((c) => c.id === id)!.weightPercent;
+    expect(w('cat-mathe')).toBe(150);
+    expect(w('cat-cs50x')).toBe(120);
+    expect(w('cat-etechnik')).toBe(100);
+    expect(w('cat-digitalrechner')).toBe(100);
+    expect(w('cat-vorlesungen')).toBe(75);
+    expect(w('cat-video')).toBe(50);
+    expect(data.settings.dailyGoalMinutes).toBe(120);
+    // No weekly targets by default – the weekly plan card stays hidden.
+    expect(weeklyPlan(data, NOW).items).toHaveLength(0);
   });
 
-  it('counts only this week and completes when every target is met', () => {
-    let data = createInitialData(NOW);
-    const add = (categoryId: string, minutes: number, date = '2026-10-12') => {
-      data = unwrap(addSession(data, { categoryId, minutes, date, source: 'manual' }, ctx)).data;
-    };
-    add('cat-mathe', 300, '2026-10-05'); // previous week
-    const days = ['2026-10-12', '2026-10-13'];
-    createInitialData(NOW)
-      .categories.filter((c) => c.weeklyTargetMinutes > 0)
-      .forEach((c, i) => add(c.id, c.weeklyTargetMinutes, days[i % 2]));
-    const plan = weeklyPlan(data, NOW);
-    expect(plan.items.find((i) => i.category.id === 'cat-mathe')!.minutes).toBe(480);
-    expect(plan.completed).toBe(true);
-    expect(evaluateAchievements(data, NOW).find((a) => a.def.id === 'wochenplan')?.unlocked).toBe(true);
-  });
-
-  it('migrates v2 data: weekly targets, 4 h daily goal and new prices', () => {
-    const raw = JSON.parse(JSON.stringify(createInitialData(NOW)));
-    raw.schemaVersion = 2;
-    for (const c of raw.categories) delete c.weeklyTargetMinutes;
-    raw.settings.dailyGoalMinutes = 120;
-    raw.rewards.find((r: { id: string }) => r.id === 'rw-mousepad').priceCents = 15000;
-    raw.rewards.find((r: { id: string }) => r.id === 'rw-dt900').priceCents = 12345; // customised by the user
+  it('migrates v3 data: new math weight via ledger correction, targets off, v2 prices', () => {
+    let v4 = createInitialData(NOW);
+    v4 = unwrap(addSession(v4, { categoryId: 'cat-mathe', minutes: 180, date: '2026-10-13', source: 'manual' }, ctx)).data;
+    const raw = JSON.parse(JSON.stringify(v4));
+    raw.schemaVersion = 3;
+    const v3Weights: Record<string, number> = { 'cat-mathe': 125, 'cat-cs50x': 110, 'cat-cs50p': 110, 'cat-digitalrechner': 90 };
+    const v3Targets: Record<string, number> = { 'cat-mathe': 480, 'cat-etechnik': 240 };
+    for (const c of raw.categories) {
+      c.weightPercent = v3Weights[c.id] ?? c.weightPercent;
+      c.weeklyTargetMinutes = v3Targets[c.id] ?? 0;
+    }
+    raw.sessions[0].weightPercent = 125;
+    raw.transactions[0].amountCents = 3750; // 3 h × 12,5 SC
+    raw.settings.dailyGoalMinutes = 240;
+    raw.rewards.find((r: { id: string }) => r.id === 'rw-mousepad').priceCents = 25000;
+    raw.rewards.find((r: { id: string }) => r.id === 'rw-dt900').priceCents = 12345; // customised
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.categories.find((c) => c.id === 'cat-mathe')!.weeklyTargetMinutes).toBe(480);
-    expect(migrated.settings.dailyGoalMinutes).toBe(240);
-    expect(migrated.rewards.find((r) => r.id === 'rw-mousepad')!.priceCents).toBe(25000);
+    expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.categories.find((c) => c.id === 'cat-mathe')!.weightPercent).toBe(150);
+    expect(migrated.categories.every((c) => c.weeklyTargetMinutes === 0)).toBe(true);
+    expect(migrated.sessions[0]!.weightPercent).toBe(150);
+    expect(balanceCents(migrated.transactions)).toBe(4500); // 37,5 SC + 7,5 SC correction
+    expect(migrated.settings.dailyGoalMinutes).toBe(120);
+    expect(migrated.rewards.find((r) => r.id === 'rw-mousepad')!.priceCents).toBe(15000);
     expect(migrated.rewards.find((r) => r.id === 'rw-dt900')!.priceCents).toBe(12345);
   });
 });

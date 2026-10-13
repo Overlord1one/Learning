@@ -44,11 +44,11 @@ React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide ·
 | XP | Minuten × Rate × Gewichtung / 60 | 60 XP pro Stunde bei ×1 |
 | Level | Level L beginnt bei 150 · L · (L − 1) XP | Level 2 bei 300 XP, Level 5 bei 3.000, Level 10 bei 13.500 |
 
-**Fach-Gewichtung (Priorität):** Mathematik ×1,25 · Programmieren (CS50x, CS50P) ×1,1 · Elektrotechnik ×1 · Digitalrechner ×0,9 · Vorlesungen ×0,75 · Video-Schnitt (Social Media) ×0,5 · Sonstiges ×0,5. Die Gewichtung wird pro Session gespeichert; spätere Änderungen gelten nur für neue Sessions.
+**Fach-Gewichtung (Priorität):** Mathematik ×1,5 (8 Schulstunden pro Woche, doppelt so viele wie die anderen Fächer) · Programmieren (CS50x, CS50P) ×1,2 · Elektrotechnik ×1 · Digitalrechner ×1 · Vorlesungen ×0,75 · Video-Schnitt (Social Media) ×0,5 · Sonstiges ×0,5. Die Gewichtung wird pro Session gespeichert; spätere Änderungen gelten nur für neue Sessions.
 
-**Wochenplan:** Mathematik 8 h, Programmieren 4 h (CS50x 2 h + CS50P 2 h), Elektrotechnik, Digitalrechner, Vorlesungen und Video-Schnitt je 4 h – 28 h pro Woche ≈ 270 SC. Tagesziel 4 h.
+**Wochenziele:** optional pro Fach unter *Einstellungen → Lernkategorien & Wochenziele*; sobald eines gesetzt ist, erscheint der Wochenplan auf dem Dashboard.
 
-**Belohnungen** (auf 28 h/Woche ausgelegt): Mauspad 250 SC (~1 Woche) · MX Master 3S 600 SC (~3 Wochen) · Lofree Flow 2 1.000 SC (~7 Wochen) · DT 900 PRO X 1.100 SC (~11 Wochen) · FlexiSpot E7 Pro 3.500 SC (~6 Monate) – gesamt 6.450 SC.
+**Belohnungen:** Mauspad 150 SC · MX Master 3S 400 SC · Lofree Flow 2 700 SC · DT 900 PRO X 800 SC · FlexiSpot E7 Pro 2.500 SC (gesamt 4.550 SC ≈ 455 h bei ×1).
 
 - Credits werden intern als ganzzahlige **Centi-Credits** (1 SC = 100) gespeichert – keine Gleitkommafehler.
 - Das Guthaben ist die **Summe eines Ledgers** (`session_earn`, `session_adjust`, `session_revoke`, `purchase`, `refund`). Es gibt keinen separat gespeicherten Kontostand.
