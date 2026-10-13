@@ -27,7 +27,7 @@ import { useAppStore } from '../store/appStore';
 import { useActiveCategories, useData } from '../store/hooks';
 import { DEFAULT_RATES } from '../domain/economy';
 import { DEFAULT_RANKS } from '../domain/ranks';
-import { formatCredits, formatDate, formatSC, formatTime, formatWeight, parseCreditsInput } from '../domain/format';
+import { formatCredits, formatDate, formatDecimal, formatSC, formatTime, formatWeight, parseCreditsInput } from '../domain/format';
 import type { AccentName, MotionPreference, RankTier, Reward, StudyCategory, TransactionType } from '../domain/types';
 import { Badge, Button, Card, Field, IconButton, Input, PageHeader, Segmented, Select, Toggle } from '../components/ui/primitives';
 import { ConfirmDialog } from '../components/ui/dialog';
@@ -280,12 +280,13 @@ function CategoriesSection() {
   const active = useActiveCategories();
 
   return (
-    <Section icon={Tags} title="Lernkategorien" description="Sortiert nach Priorität. Die Gewichtung bestimmt Credits und XP pro Stunde; benutzte Kategorien werden archiviert statt gelöscht.">
+    <Section icon={Tags} title="Lernkategorien & Wochenziele" description="Sortiert nach Priorität. Die Gewichtung bestimmt Credits und XP pro Stunde; benutzte Kategorien werden archiviert statt gelöscht.">
       <ul className="flex flex-col">
         {active.map((c) => (
           <li key={c.id} className="flex items-center gap-3 border-b border-line-soft py-2.5 last:border-0">
             <span className="size-2.5 rounded-full" style={{ background: c.color }} />
             <span className="flex-1 text-sm text-fg">{c.name}</span>
+            {c.weeklyTargetMinutes > 0 && <span className="tabular text-xs text-faint">{formatDecimal(c.weeklyTargetMinutes / 60)} h/Wo.</span>}
             <span className="tabular text-xs text-muted" title="Gewichtung">{formatWeight(c.weightPercent)}</span>
             {c.isDefault && <Badge>Standard</Badge>}
             <IconButton

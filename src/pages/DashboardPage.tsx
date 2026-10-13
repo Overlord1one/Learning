@@ -12,6 +12,7 @@ import { StatCard } from '../components/StatCard';
 import { ActivityList } from '../components/ActivityList';
 import { GoalPickerDialog } from '../components/shop/GoalPicker';
 import { InstallHint } from '../components/InstallHint';
+import { WeeklyPlanCard } from '../components/WeeklyPlanCard';
 
 function LevelAvatar({ level, ratio }: { level: number; ratio: number }) {
   return (
@@ -193,6 +194,8 @@ export function DashboardPage() {
         <GoalCard />
         <LevelCard />
       </div>
+
+      <WeeklyPlanCard className="mt-4 lg:mt-5" />
 
       <section aria-label="Statistiken" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:mt-5 lg:grid-cols-6 lg:gap-4">
         <StatCard index={0} icon={Gauge} tone="gold" label="Setup Credits" value={<AnimatedNumber value={player.balanceCents} format={(v) => formatCredits(Math.round(v))} />} sub="SC verfügbar" />

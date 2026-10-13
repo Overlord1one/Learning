@@ -9,7 +9,7 @@ import {
 } from './economy';
 import { addDays, dayKey, daysBetween, parseDayKey, shiftDayKey, startOfMonth, startOfWeek } from './dates';
 import { activePurchaseFor } from './commands';
-import type { AppData, DayKey, Reward, RewardPurchase, StudySession } from './types';
+import type { AppData, DayKey, Reward, RewardPurchase, StudyCategory, StudySession } from './types';
 
 // ---------------------------------------------------------------------------
 // Study time
@@ -83,6 +83,63 @@ export function studyStats(sessions: readonly StudySession[], now: Date): StudyS
     bestStreak: longestStreak(sessions),
     activeDays: minutesByDay(sessions).size,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Weekly plan
+// ---------------------------------------------------------------------------
+
+export interface WeeklyPlanItem {
+  category: StudyCategory;
+  minutes: number;
+  targetMinutes: number;
+  /** 0 … 1 (capped) */
+  ratio: number;
+  done: boolean;
+}
+
+export interface WeeklyPlan {
+  weekStart: DayKey;
+  items: WeeklyPlanItem[];
+  totalMinutes: number;
+  totalTargetMinutes: number;
+  completed: boolean;
+}
+
+/** Progress against each subject's weekly target for the week (Mon–Sun) containing `date`. */
+export function weeklyPlan(data: AppData, date: Date): WeeklyPlan {
+  const start = startOfWeek(date);
+  const from = dayKey(start);
+  const to = dayKey(addDays(start, 6));
+  const planned = data.categories
+    .filter((c) => !c.archived && c.weeklyTargetMinutes > 0)
+    .sort((a, b) => b.weightPercent - a.weightPercent);
+  const items = planned.map((category) => {
+    let minutes = 0;
+    for (const s of data.sessions) if (s.categoryId === category.id && s.date >= from && s.date <= to) minutes += s.minutes;
+    return {
+      category,
+      minutes,
+      targetMinutes: category.weeklyTargetMinutes,
+      ratio: Math.min(1, minutes / category.weeklyTargetMinutes),
+      done: minutes >= category.weeklyTargetMinutes,
+    };
+  });
+  return {
+    weekStart: from,
+    items,
+    totalMinutes: items.reduce((a, i) => a + Math.min(i.minutes, i.targetMinutes), 0),
+    totalTargetMinutes: items.reduce((a, i) => a + i.targetMinutes, 0),
+    completed: items.length > 0 && items.every((i) => i.done),
+  };
+}
+
+/** Number of weeks in which every weekly target was reached. */
+export function completedPlanWeeks(data: AppData): number {
+  const weeks = new Set(data.sessions.map((s) => dayKey(startOfWeek(parseDayKey(s.date)))));
+  let count = 0;
+  for (const w of weeks) if (weeklyPlan(data, parseDayKey(w)).completed) count++;
+  return count;
 }
 
 // ---------------------------------------------------------------------------

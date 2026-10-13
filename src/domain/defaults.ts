@@ -6,16 +6,18 @@ import type { AppData, Reward, Settings, StudyCategory } from './types';
 /**
  * Subjects ordered by priority. The weighting scales credits and XP per hour:
  * math (8 h per week) is worth the most, video editing for social media the least.
+ * Weekly targets: 8 h math, 4 h for every other subject (programming split
+ * between CS50x and CS50P) – 28 h per week in total.
  */
 export const DEFAULT_CATEGORIES: StudyCategory[] = [
-  { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false, weightPercent: 125 },
-  { id: 'cat-cs50x', name: 'Harvard CS50x', color: '#3987e5', isDefault: true, archived: false, weightPercent: 110 },
-  { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false, weightPercent: 110 },
-  { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false, weightPercent: 100 },
-  { id: 'cat-digitalrechner', name: 'Digitalrechner', color: '#008300', isDefault: true, archived: false, weightPercent: 90 },
-  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 75 },
-  { id: 'cat-video', name: 'Video-Schnitt (Social Media)', color: '#e66767', isDefault: true, archived: false, weightPercent: 50 },
-  { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false, weightPercent: 50 },
+  { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false, weightPercent: 125, weeklyTargetMinutes: 480 },
+  { id: 'cat-cs50x', name: 'Harvard CS50x', color: '#3987e5', isDefault: true, archived: false, weightPercent: 110, weeklyTargetMinutes: 120 },
+  { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false, weightPercent: 110, weeklyTargetMinutes: 120 },
+  { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 240 },
+  { id: 'cat-digitalrechner', name: 'Digitalrechner', color: '#008300', isDefault: true, archived: false, weightPercent: 90, weeklyTargetMinutes: 240 },
+  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 75, weeklyTargetMinutes: 240 },
+  { id: 'cat-video', name: 'Video-Schnitt (Social Media)', color: '#e66767', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 240 },
+  { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0 },
 ];
 
 export const WEIGHT_OPTIONS = [50, 75, 90, 100, 110, 125, 150];
@@ -34,7 +36,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Stealth Edition',
     icon: 'mousepad',
     imageUrl: '',
-    priceCents: 15000,
+    priceCents: 25000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -51,7 +53,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Weiß / Hellgrau',
     icon: 'mouse',
     imageUrl: '',
-    priceCents: 40000,
+    priceCents: 60000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -68,7 +70,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Light / Silber / Weiß',
     icon: 'keyboard',
     imageUrl: '',
-    priceCents: 70000,
+    priceCents: 100000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -85,7 +87,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Open-Back',
     icon: 'headphones',
     imageUrl: '',
-    priceCents: 80000,
+    priceCents: 110000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
@@ -102,7 +104,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     variant: 'Große Tischplatte, dunkles Finish',
     icon: 'desk',
     imageUrl: '',
-    priceCents: 250000,
+    priceCents: 350000,
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'hoch',
@@ -142,12 +144,21 @@ export const V1_DEFAULT_PRICES: Record<string, number> = {
   'rw-flexispot': 70000,
 };
 
+/** Prices of version 2 (before the 28-hour weekly plan was considered). */
+export const V2_DEFAULT_PRICES: Record<string, number> = {
+  'rw-mousepad': 15000,
+  'rw-mx-master': 40000,
+  'rw-lofree-flow': 70000,
+  'rw-dt900': 80000,
+  'rw-flexispot': 250000,
+};
+
 export const DEFAULT_REWARD_IDS = DEFAULT_REWARDS.map((r) => r.id);
 
 export function defaultSettings(): Settings {
   return {
     profileName: '',
-    dailyGoalMinutes: 120,
+    dailyGoalMinutes: 240,
     defaultCategoryId: 'cat-mathe',
     rates: { ...DEFAULT_RATES },
     ranks: DEFAULT_RANKS.map((r) => ({ ...r })),

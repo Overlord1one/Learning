@@ -68,6 +68,10 @@ function validWeight(weight: number): boolean {
   return Number.isInteger(weight) && weight >= 25 && weight <= 300;
 }
 
+function validWeeklyTarget(minutes: number): boolean {
+  return Number.isInteger(minutes) && minutes >= 0 && minutes <= 7 * 24 * 60;
+}
+
 function minutesOnDay(data: AppData, date: string, excludeId?: string): number {
   let sum = 0;
   for (const s of data.sessions) if (s.date === date && s.id !== excludeId) sum += s.minutes;
@@ -451,18 +455,25 @@ export function setGoalReward(data: AppData, rewardId: string | null): Result<Ap
 // Categories
 // ---------------------------------------------------------------------------
 
-export function addCategory(data: AppData, name: string, color: string, weightPercent = 100): Result<{ data: AppData; category: StudyCategory }> {
+export function addCategory(
+  data: AppData,
+  name: string,
+  color: string,
+  weightPercent = 100,
+  weeklyTargetMinutes = 0,
+): Result<{ data: AppData; category: StudyCategory }> {
   const trimmed = name.trim();
   if (!validWeight(weightPercent)) return fail('Die Gewichtung ist ungültig.');
+  if (!validWeeklyTarget(weeklyTargetMinutes)) return fail('Das Wochenziel ist ungültig.');
   if (!trimmed) return fail('Bitte gib einen Namen für die Kategorie ein.');
   if (trimmed.length > 40) return fail('Der Name ist zu lang (max. 40 Zeichen).');
   const existing = data.categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   if (existing && !existing.archived) return fail('Diese Kategorie gibt es bereits.');
   if (existing) {
-    const category = { ...existing, archived: false, color, weightPercent };
+    const category = { ...existing, archived: false, color, weightPercent, weeklyTargetMinutes };
     return ok({ data: { ...data, categories: data.categories.map((c) => (c.id === existing.id ? category : c)) }, category });
   }
-  const category: StudyCategory = { id: createId('cat'), name: trimmed, color, isDefault: false, archived: false, weightPercent };
+  const category: StudyCategory = { id: createId('cat'), name: trimmed, color, isDefault: false, archived: false, weightPercent, weeklyTargetMinutes };
   return ok({ data: { ...data, categories: [...data.categories, category] }, category });
 }
 
@@ -485,16 +496,30 @@ export function removeCategory(data: AppData, id: string): Result<AppData> {
 }
 
 /** Edit a subject. A new weighting applies to future sessions only. */
-export function renameCategory(data: AppData, id: string, name: string, color: string, weightPercent?: number): Result<AppData> {
+export function renameCategory(
+  data: AppData,
+  id: string,
+  name: string,
+  color: string,
+  weightPercent?: number,
+  weeklyTargetMinutes?: number,
+): Result<AppData> {
   const trimmed = name.trim();
   if (weightPercent !== undefined && !validWeight(weightPercent)) return fail('Die Gewichtung ist ungültig.');
+  if (weeklyTargetMinutes !== undefined && !validWeeklyTarget(weeklyTargetMinutes)) return fail('Das Wochenziel ist ungültig.');
   if (!trimmed) return fail('Bitte gib einen Namen ein.');
   if (data.categories.some((c) => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase() && !c.archived)) {
     return fail('Diese Kategorie gibt es bereits.');
   }
   return ok({
     ...data,
-    categories: data.categories.map((c) => (c.id === id ? { ...c, name: trimmed, color, weightPercent: weightPercent ?? c.weightPercent } : c)),
+    categories: data.categories.map((c) => (c.id === id ? {
+            ...c,
+            name: trimmed,
+            color,
+            weightPercent: weightPercent ?? c.weightPercent,
+            weeklyTargetMinutes: weeklyTargetMinutes ?? c.weeklyTargetMinutes,
+          } : c)),
   });
 }
 

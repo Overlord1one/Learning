@@ -1,6 +1,6 @@
 /** Achievements are derived from real progress only – they cannot be granted manually. */
 import { DEFAULT_REWARD_IDS } from './defaults';
-import { studyStats } from './stats';
+import { completedPlanWeeks, studyStats } from './stats';
 import { dayKey, parseDayKey, startOfWeek } from './dates';
 import type { AppData } from './types';
 
@@ -13,6 +13,8 @@ export interface AchievementContext {
   longestSessionMinutes: number;
   /** Most math minutes studied within a single calendar week (Mon–Sun). */
   bestMathWeekMinutes: number;
+  /** Weeks in which every subject reached its weekly target. */
+  planWeeks: number;
   unlockedRewardIds: Set<string>;
 }
 
@@ -90,6 +92,26 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     unit: 'h',
   },
   {
+    id: 'wochenplan',
+    title: 'Nach Plan',
+    description: 'Erfülle in einer Woche das Wochenziel jedes Fachs.',
+    icon: 'calendarCheck',
+    tier: 'silber',
+    progress: (c) => c.planWeeks,
+    target: 1,
+    unit: 'Woche',
+  },
+  {
+    id: 'wochenplan-4',
+    title: 'Eiserne Routine',
+    description: 'Erfülle deinen kompletten Wochenplan in vier verschiedenen Wochen.',
+    icon: 'trophy',
+    tier: 'gold',
+    progress: (c) => c.planWeeks,
+    target: 4,
+    unit: 'Wochen',
+  },
+  {
     id: 'ausdauer',
     title: 'Ausdauer',
     description: 'Lerne insgesamt 50 Stunden.',
@@ -159,6 +181,7 @@ export function achievementContext(data: AppData, now: Date): AchievementContext
     bestStreak: stats.bestStreak,
     longestSessionMinutes: stats.longestSessionMinutes,
     bestMathWeekMinutes: bestWeekMinutes(data, 'cat-mathe'),
+    planWeeks: completedPlanWeeks(data),
     unlockedRewardIds: new Set(data.purchases.filter((p) => p.refundedAt === null).map((p) => p.rewardId)),
   };
 }

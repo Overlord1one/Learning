@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialData } from './defaults';
+import { shiftDayKey } from './dates';
 import {
   addSession,
   commitTimer,
@@ -15,7 +16,7 @@ import {
   renameCategory,
 } from './commands';
 import { balanceCents, creditsForMinutes, levelForXp, levelProgress, minutesToEarn, totalXp, xpForMinutes, DEFAULT_RATES } from './economy';
-import { goalReward, playerSnapshot, projectCompletion, rewardProgress, studyStats } from './stats';
+import { goalReward, playerSnapshot, projectCompletion, rewardProgress, studyStats, weeklyPlan } from './stats';
 import { evaluateAchievements } from './achievements';
 import { migrate, validateAppData } from './schema';
 import { rankForLevel, DEFAULT_RANKS } from './ranks';
@@ -32,7 +33,15 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; error: string }): T 
 }
 
 function log(data: AppData, minutes: number, date = '2026-10-13', id?: string): AppData {
-  return unwrap(addSession(data, { id, categoryId: 'cat-etechnik', minutes, date, source: 'manual' }, ctx)).data;
+  // Spread long totals over previous days – a single day holds at most 24 h.
+  let rest = minutes;
+  let day = date;
+  while (rest > 600) {
+    data = unwrap(addSession(data, { categoryId: 'cat-etechnik', minutes: 600, date: day, source: 'manual' }, ctx)).data;
+    rest -= 600;
+    day = shiftDayKey(day, -1);
+  }
+  return unwrap(addSession(data, { id, categoryId: 'cat-etechnik', minutes: rest, date: day, source: 'manual' }, ctx)).data;
 }
 
 describe('credit & XP formulas', () => {
@@ -76,7 +85,7 @@ describe('credit & XP formulas', () => {
 
   it('computes study time needed for a reward', () => {
     expect(minutesToEarn(4000, DEFAULT_RATES)).toBe(240);
-    expect(minutesToEarn(15000, DEFAULT_RATES)).toBe(900); // mousepad: 15 h
+    expect(minutesToEarn(25000, DEFAULT_RATES)).toBe(1500); // mousepad: 25 h
     expect(minutesToEarn(17500, DEFAULT_RATES)).toBe(1050);
     expect(minutesToEarn(15000, DEFAULT_RATES)).toBe(900); // 150 SC → 15 h
   });
@@ -92,7 +101,7 @@ describe('acceptance', () => {
     const shop = data.rewards.filter((r) => !r.preOwned);
     expect(shop).toHaveLength(5);
     expect(shop.every((r) => rewardProgress(data, r).status === 'gesperrt')).toBe(true);
-    expect(shop.reduce((a, r) => a + r.priceCents, 0)).toBe(455000);
+    expect(shop.reduce((a, r) => a + r.priceCents, 0)).toBe(645000);
     expect(data.rewards.find((r) => r.preOwned)?.name).toMatch(/ROCCAT/);
     expect(evaluateAchievements(data, NOW).some((a) => a.unlocked)).toBe(false);
   });
@@ -111,26 +120,26 @@ describe('acceptance', () => {
     expect(p.level).toBe(2);
   });
 
-  it('150 SC unlock the mousepad, deduct exactly 150 SC and leave XP untouched', () => {
-    let data = log(createInitialData(NOW), 900);
+  it('250 SC unlock the mousepad, deduct exactly 250 SC and leave XP untouched', () => {
+    let data = log(createInitialData(NOW), 1500);
     const before = playerSnapshot(data);
     expect(rewardProgress(data, data.rewards.find((r) => r.id === 'rw-mousepad')!).status).toBe('freischaltbar');
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     const after = playerSnapshot(data);
-    expect(after.balanceCents).toBe(before.balanceCents - 15000);
+    expect(after.balanceCents).toBe(before.balanceCents - 25000);
     expect(after.xp).toBe(before.xp);
     expect(after.level).toBe(before.level);
     expect(rewardProgress(data, data.rewards.find((r) => r.id === 'rw-mousepad')!).status).toBe('freigeschaltet');
   });
 
   it('insufficient credits cannot unlock an item', () => {
-    const data = log(createInitialData(NOW), 899);
+    const data = log(createInitialData(NOW), 1499);
     const r = purchaseReward(data, 'rw-mousepad', ctx);
     expect(r.ok).toBe(false);
   });
 
   it('cannot unlock the same reward twice', () => {
-    let data = log(createInitialData(NOW), 900);
+    let data = log(createInitialData(NOW), 1500);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     expect(purchaseReward(data, 'rw-mousepad', ctx).ok).toBe(false);
   });
@@ -180,22 +189,22 @@ describe('acceptance', () => {
   });
 
   it('never allows a negative balance through edits or deletes', () => {
-    let data = log(createInitialData(NOW), 900);
+    let data = log(createInitialData(NOW), 1500);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     const id = data.sessions[0]!.id;
     expect(deleteSession(data, id, ctx).ok).toBe(false);
     expect(updateSession(data, id, { minutes: 100 }, ctx).ok).toBe(false);
     data = unwrap(refundPurchase(data, data.purchases[0]!.id, ctx));
-    expect(balanceCents(data.transactions)).toBe(15000);
+    expect(balanceCents(data.transactions)).toBe(25000);
     expect(deleteSession(data, id, ctx).ok).toBe(true);
   });
 
   it('purchases keep their historic price when the reward price changes', () => {
-    let data = log(createInitialData(NOW), 900);
+    let data = log(createInitialData(NOW), 1500);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     data = { ...data, rewards: data.rewards.map((r) => (r.id === 'rw-mousepad' ? { ...r, priceCents: 9900 } : r)) };
     data = unwrap(refundPurchase(data, data.purchases[0]!.id, ctx));
-    expect(balanceCents(data.transactions)).toBe(15000);
+    expect(balanceCents(data.transactions)).toBe(25000);
   });
 
   it('rate changes only affect new sessions', () => {
@@ -220,7 +229,7 @@ describe('acceptance', () => {
   });
 
   it('survives a JSON round trip (persistence) with validation', () => {
-    let data = log(createInitialData(NOW), 900);
+    let data = log(createInitialData(NOW), 1500);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     const restored = unwrap(validateAppData(JSON.parse(JSON.stringify(data))));
     expect(restored).toEqual(data);
@@ -307,7 +316,7 @@ describe('stats & projections', () => {
   });
 
   it('falls back to the cheapest locked reward as goal', () => {
-    let data = log(createInitialData(NOW), 900);
+    let data = log(createInitialData(NOW), 1500);
     data = unwrap(purchaseReward(data, 'rw-mousepad', ctx));
     expect(goalReward(data)?.id).toBe('rw-mx-master');
   });
@@ -365,7 +374,10 @@ describe('migration v1 → v2', () => {
     const v2 = log(createInitialData(NOW), 90, '2026-10-13'); // 15 SC at 100 %
     const data = JSON.parse(JSON.stringify(v2));
     data.schemaVersion = 1;
-    for (const c of data.categories) delete c.weightPercent;
+    for (const c of data.categories) {
+      delete c.weightPercent;
+      delete c.weeklyTargetMinutes;
+    }
     data.categories = data.categories.filter((c: { id: string }) => !['cat-digitalrechner', 'cat-vorlesungen', 'cat-video'].includes(c.id));
     for (const s of data.sessions) delete s.weightPercent;
     const v1Prices: Record<string, number> = { 'rw-mousepad': 4000, 'rw-mx-master': 10000, 'rw-lofree-flow': 17500, 'rw-dt900': 20000, 'rw-flexispot': 70000 };
@@ -379,13 +391,13 @@ describe('migration v1 → v2', () => {
     raw.sessions[0].categoryId = 'cat-mathe';
     raw.transactions[0].sessionId = raw.sessions[0].id;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(migrated.categories.map((c) => c.id)).toContain('cat-digitalrechner');
     expect(migrated.categories.map((c) => c.id)).toContain('cat-video');
     expect(migrated.sessions[0]!.weightPercent).toBe(125);
     expect(balanceCents(migrated.transactions)).toBe(1875); // 15 SC + 3,75 SC correction
     expect(migrated.transactions.at(-1)!.type).toBe('session_adjust');
-    expect(migrated.rewards.find((r) => r.id === 'rw-flexispot')!.priceCents).toBe(250000);
+    expect(migrated.rewards.find((r) => r.id === 'rw-flexispot')!.priceCents).toBe(350000);
     expect(migrated.settings.defaultCategoryId).toBe('cat-mathe');
   });
 
@@ -397,5 +409,45 @@ describe('migration v1 → v2', () => {
     const migrated = unwrap(validateAppData(migrate(raw)));
     expect(migrated.sessions[0]!.weightPercent).toBe(100);
     expect(balanceCents(migrated.transactions)).toBe(0);
+  });
+});
+
+describe('weekly plan (v3)', () => {
+  it('plans 8 h math and 4 h for every other subject – 28 h in total', () => {
+    const plan = weeklyPlan(createInitialData(NOW), NOW);
+    expect(plan.items[0]!.category.id).toBe('cat-mathe');
+    expect(plan.items[0]!.targetMinutes).toBe(480);
+    expect(plan.totalTargetMinutes).toBe(28 * 60);
+    expect(plan.completed).toBe(false);
+  });
+
+  it('counts only this week and completes when every target is met', () => {
+    let data = createInitialData(NOW);
+    const add = (categoryId: string, minutes: number, date = '2026-10-12') => {
+      data = unwrap(addSession(data, { categoryId, minutes, date, source: 'manual' }, ctx)).data;
+    };
+    add('cat-mathe', 300, '2026-10-05'); // previous week
+    const days = ['2026-10-12', '2026-10-13'];
+    createInitialData(NOW)
+      .categories.filter((c) => c.weeklyTargetMinutes > 0)
+      .forEach((c, i) => add(c.id, c.weeklyTargetMinutes, days[i % 2]));
+    const plan = weeklyPlan(data, NOW);
+    expect(plan.items.find((i) => i.category.id === 'cat-mathe')!.minutes).toBe(480);
+    expect(plan.completed).toBe(true);
+    expect(evaluateAchievements(data, NOW).find((a) => a.def.id === 'wochenplan')?.unlocked).toBe(true);
+  });
+
+  it('migrates v2 data: weekly targets, 4 h daily goal and new prices', () => {
+    const raw = JSON.parse(JSON.stringify(createInitialData(NOW)));
+    raw.schemaVersion = 2;
+    for (const c of raw.categories) delete c.weeklyTargetMinutes;
+    raw.settings.dailyGoalMinutes = 120;
+    raw.rewards.find((r: { id: string }) => r.id === 'rw-mousepad').priceCents = 15000;
+    raw.rewards.find((r: { id: string }) => r.id === 'rw-dt900').priceCents = 12345; // customised by the user
+    const migrated = unwrap(validateAppData(migrate(raw)));
+    expect(migrated.categories.find((c) => c.id === 'cat-mathe')!.weeklyTargetMinutes).toBe(480);
+    expect(migrated.settings.dailyGoalMinutes).toBe(240);
+    expect(migrated.rewards.find((r) => r.id === 'rw-mousepad')!.priceCents).toBe(25000);
+    expect(migrated.rewards.find((r) => r.id === 'rw-dt900')!.priceCents).toBe(12345);
   });
 });

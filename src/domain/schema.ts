@@ -5,7 +5,7 @@ import { creditedForSession } from './commands';
 import { isValidDayKey } from './dates';
 import { SCHEMA_VERSION } from './types';
 import type { AppData, CreditTransaction, Result, StudyCategory, StudySession } from './types';
-import { DEFAULT_CATEGORIES, DEFAULT_REWARDS, V1_DEFAULT_PRICES } from './defaults';
+import { DEFAULT_CATEGORIES, DEFAULT_REWARDS, V1_DEFAULT_PRICES, V2_DEFAULT_PRICES } from './defaults';
 import { createId } from './ids';
 import { fail, ok } from './types';
 
@@ -33,7 +33,7 @@ const schema = z.object({
   }),
   categories: z
     .array(
-      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: int.min(25).max(300) }),
+      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: int.min(25).max(300), weeklyTargetMinutes: int.min(0).max(10080) }),
     )
     .min(1),
   sessions: z.array(
@@ -160,6 +160,30 @@ export function validateAppData(input: unknown): Result<AppData> {
 export function migrate(raw: unknown): unknown {
   let data = raw;
   if (isRecord(data) && data.schemaVersion === 1) data = migrateV1toV2(data);
+  if (isRecord(data) && data.schemaVersion === 2) data = migrateV2toV3(data);
+  return data;
+}
+
+/**
+ * v3: weekly study targets per subject (8 h math, 4 h for the others), a 4-hour
+ * daily goal and reward prices scaled to a 28-hour study week.
+ */
+function migrateV2toV3(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  if (Array.isArray(data.categories)) {
+    data.categories = data.categories.map((c: StudyCategory) => ({
+      ...c,
+      weeklyTargetMinutes: c.weeklyTargetMinutes ?? DEFAULT_CATEGORIES.find((d) => d.id === c.id)?.weeklyTargetMinutes ?? 0,
+    }));
+  }
+  if (Array.isArray(data.rewards)) {
+    data.rewards = data.rewards.map((r: { id: string; priceCents: number }) => {
+      const seed = DEFAULT_REWARDS.find((d) => d.id === r.id);
+      return seed && V2_DEFAULT_PRICES[r.id] === r.priceCents ? { ...r, priceCents: seed.priceCents } : r;
+    });
+  }
+  if (isRecord(data.settings) && data.settings.dailyGoalMinutes === 120) data.settings.dailyGoalMinutes = 240;
+  data.schemaVersion = 3;
   return data;
 }
 

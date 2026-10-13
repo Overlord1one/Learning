@@ -10,7 +10,7 @@
 export type ISODateTime = string; // 2026-10-13T08:15:00.000Z
 export type DayKey = string; // 2026-10-13 (local calendar day)
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Rates that were valid when a session was recorded. Locked per session. */
 export interface RateSnapshot {
@@ -32,6 +32,8 @@ export interface StudyCategory {
    * at 120 % earns 12 SC and 72 XP instead of 10 SC and 60 XP.
    */
   weightPercent: number;
+  /** Planned study time per week in minutes (0 = no weekly target). */
+  weeklyTargetMinutes: number;
 }
 
 export type SessionSource = 'timer' | 'manual';
