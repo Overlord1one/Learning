@@ -17,6 +17,8 @@ export function timerElapsedMs(timer: ActiveTimer, now: Date): number {
 
 export function pauseTimerAt(timer: ActiveTimer, at: Date): ActiveTimer {
   if (timer.status !== 'running') return timer;
+  // A pending gap must be decided before pausing, otherwise it would be counted.
+  if (timer.interruptedAt) return timer;
   return {
     ...timer,
     accumulatedMs: timerElapsedMs(timer, at),
@@ -38,18 +40,43 @@ export function resumeTimerAt(timer: ActiveTimer, at: Date): ActiveTimer {
 }
 
 /**
- * Called on app start and on every heartbeat. When the app was closed or the
- * device slept while the timer was running, the timer is paused at the last
- * confirmed moment instead of silently counting the gap.
+ * Called on app start, when the app becomes visible and on every heartbeat.
+ * When the app was closed or the phone was locked while the timer was running
+ * (iOS freezes the app then), the gap is flagged with `interruptedAt` so the
+ * user can decide whether that time counts. Nothing is counted silently: the
+ * timer keeps running, and the decision is made via `resolveAway`.
  */
 export function reconcileTimer(timer: ActiveTimer, now: Date): ActiveTimer {
   if (timer.status !== 'running') return timer;
   const lastAlive = Date.parse(timer.heartbeatAt);
-  if (now.getTime() - lastAlive > HEARTBEAT_GRACE_MS) {
-    const paused = pauseTimerAt(timer, new Date(lastAlive));
-    return { ...paused, interruptedAt: timer.heartbeatAt };
+  if (!timer.interruptedAt && now.getTime() - lastAlive > HEARTBEAT_GRACE_MS) {
+    return { ...timer, interruptedAt: timer.heartbeatAt, heartbeatAt: now.toISOString() };
   }
   return { ...timer, heartbeatAt: now.toISOString() };
+}
+
+/** Milliseconds the app was away (not confirmed alive) – 0 if no gap is pending. */
+export function awayMs(timer: ActiveTimer, now: Date): number {
+  if (!timer.interruptedAt) return 0;
+  return Math.max(0, now.getTime() - Date.parse(timer.interruptedAt));
+}
+
+/**
+ * Resolve a pending gap. `count = true` keeps the time away as study time;
+ * `count = false` removes it – the timer continues from now as if it had been
+ * paused while the app was inactive.
+ */
+export function resolveAway(timer: ActiveTimer, count: boolean, now: Date): ActiveTimer {
+  if (!timer.interruptedAt) return timer;
+  if (count || timer.status !== 'running') return { ...timer, interruptedAt: null };
+  const until = new Date(timer.interruptedAt);
+  return {
+    ...timer,
+    accumulatedMs: timerElapsedMs(timer, until),
+    segmentStartedAt: now.toISOString(),
+    heartbeatAt: now.toISOString(),
+    interruptedAt: null,
+  };
 }
 
 /** Minutes the timer measured – the default proposal in the summary. */

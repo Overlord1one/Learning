@@ -14,12 +14,14 @@ interface DialogProps {
   children?: ReactNode;
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  /** Hide the close button – for decisions that must be answered. */
+  hideClose?: boolean;
 }
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Accessible modal dialog: focus trap, Escape to close, scroll lock, returns focus. */
-export function Dialog({ open, onClose, title, description, children, footer, size = 'md' }: DialogProps) {
+export function Dialog({ open, onClose, title, description, children, footer, size = 'md', hideClose = false }: DialogProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -79,7 +81,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
             aria-modal="true"
             aria-labelledby={titleId}
             className={cn(
-              'relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-line bg-card shadow-2xl sm:rounded-3xl',
+              'relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] w-full flex-col overflow-hidden rounded-t-3xl border border-line bg-card shadow-2xl sm:rounded-3xl',
               size === 'sm' && 'sm:max-w-md',
               size === 'md' && 'sm:max-w-lg',
               size === 'lg' && 'sm:max-w-2xl',
@@ -96,12 +98,12 @@ export function Dialog({ open, onClose, title, description, children, footer, si
                 </h2>
                 {description && <div className="mt-1.5 text-sm leading-relaxed text-muted">{description}</div>}
               </div>
-              <button type="button" onClick={onClose} aria-label="Schließen" className="focus-ring -mr-2 -mt-1 rounded-lg p-2 text-muted hover:bg-elevated hover:text-fg">
+              {!hideClose && <button type="button" onClick={onClose} aria-label="Schließen" className="focus-ring -mr-2 -mt-1 rounded-lg p-2 text-muted hover:bg-elevated hover:text-fg">
                 <X className="size-4" />
-              </button>
+              </button>}
             </div>
             {children && <div className="scrollbar-thin overflow-y-auto px-6 pt-5 pb-2">{children}</div>}
-            {footer && <div className="flex flex-col-reverse gap-2 px-6 pt-4 pb-6 sm:flex-row sm:justify-end">{footer}</div>}
+            {footer && <div className="flex flex-col-reverse gap-2 px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:pb-6">{footer}</div>}
           </motion.div>
         </div>
       )}

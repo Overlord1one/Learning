@@ -13,6 +13,25 @@ npm test           # Domänen- & Akzeptanztests (Vitest)
 npm run build      # Typecheck + Produktions-Build
 ```
 
+## Auf dem iPhone nutzen
+
+SETUP QUEST ist eine installierbare Web-App (PWA): Vollbild ohne Safari-Leiste, eigenes App-Symbol, funktioniert offline.
+
+1. App online stellen (siehe *Veröffentlichen*) und die URL in **Safari** auf dem iPhone öffnen.
+2. Unten auf **Teilen** tippen → **Zum Home-Bildschirm**.
+3. Ab jetzt immer über das App-Symbol öffnen.
+
+Hinweise:
+- Alle Daten liegen lokal auf dem iPhone (im Speicher der installierten App, getrennt von Safari-Tabs). Regelmäßig unter *Einstellungen → Daten → Exportieren* sichern („In Dateien sichern“, z. B. iCloud Drive).
+- iOS pausiert Web-Apps bei gesperrtem Display. Läuft der Timer währenddessen, fragt die App beim Zurückkehren, ob die Zeit als Lernzeit zählt.
+- Benachrichtigungen funktionieren auf dem iPhone nur in der installierten App (ab iOS 16.4) und nur, solange sie geöffnet ist.
+
+## Veröffentlichen
+
+`npm run build` erzeugt einen statischen Ordner `dist/`, der auf jedem HTTPS-Webspace läuft (relative Pfade, Hash-Routing – keine Server-Konfiguration nötig).
+
+**GitHub Pages:** Der Workflow `.github/workflows/deploy.yml` baut und veröffentlicht bei jedem Push auf `main`. Einmalig in GitHub unter *Settings → Pages → Source* „GitHub Actions“ wählen. Die App ist dann unter `https://<nutzer>.github.io/<repo>/` erreichbar.
+
 ## Stack
 
 React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide · Recharts · Zustand · Zod
@@ -35,7 +54,7 @@ React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide ·
 
 ## Live-Timer
 
-Der Timer basiert auf Zeitstempeln (laufende Segmente + angesammelte Zeit), zählt keine Pausen und überlebt Reloads. Ein Heartbeat erkennt geschlossene Tabs bzw. Standby: Fehlt er länger als 3 Minuten, wird der Timer am letzten bestätigten Zeitpunkt pausiert. Die bestätigte Zeit darf die gemessene nie überschreiten.
+Der Timer basiert auf Zeitstempeln (laufende Segmente + angesammelte Zeit), zählt keine Pausen und überlebt Reloads. Ein Heartbeat erkennt geschlossene App, gesperrtes iPhone oder Standby: Fehlt er länger als 3 Minuten, fragt die App beim Zurückkehren, ob diese Zeit mitzählt – sonst wird sie abgezogen. Nichts wird stillschweigend gezählt; vorher kann die Session weder pausiert noch abgeschlossen werden. Die bestätigte Zeit darf die gemessene nie überschreiten.
 
 ## Architektur
 

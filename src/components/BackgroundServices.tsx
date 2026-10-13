@@ -4,15 +4,9 @@ import { evaluateAchievements } from '../domain/achievements';
 import { HEARTBEAT_INTERVAL_MS, timerElapsedMs } from '../domain/timer';
 import { studyStats } from '../domain/stats';
 import { formatMinutes } from '../domain/format';
+import { showNotification } from '../lib/pwa';
 
-function notify(title: string, body: string) {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  try {
-    new Notification(title, { body, icon: '/favicon.svg' });
-  } catch {
-    /* some browsers only allow notifications from service workers */
-  }
-}
+const notify = (title: string, body: string) => void showNotification(title, body);
 
 /** Non-visual effects: timer heartbeat, theme attributes, achievements, reminders. */
 export function BackgroundServices() {
@@ -28,12 +22,13 @@ export function BackgroundServices() {
     if (!timerRunning) return;
     heartbeat();
     const id = window.setInterval(heartbeat, HEARTBEAT_INTERVAL_MS);
-    const onVisible = () => document.visibilityState === 'visible' && heartbeat();
-    document.addEventListener('visibilitychange', onVisible);
+    // Record the moment the app is hidden (iOS freezes it when the phone locks)
+    // and check for a gap as soon as it is visible again.
+    document.addEventListener('visibilitychange', heartbeat);
     window.addEventListener('pagehide', heartbeat);
     return () => {
       window.clearInterval(id);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', heartbeat);
       window.removeEventListener('pagehide', heartbeat);
     };
   }, [timerRunning, heartbeat]);

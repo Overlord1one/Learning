@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { AlertCircle, Flag, Focus, Minimize2, Pause, Play, Plus, Square, Trash2 } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Flag, Focus, Minimize2, Pause, Play, Plus, Square, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { useActiveCategories, useData, useNow } from '../../store/hooks';
 import { creditsForMinutes, xpForMinutes } from '../../domain/economy';
@@ -239,19 +239,6 @@ export function LiveTimer() {
           <p className="mt-2 text-sm text-muted">Pausen werden nicht gezählt. Credits gibt es nach deiner Bestätigung.</p>
         )}
 
-        <AnimatePresence>
-          {timer?.interruptedAt && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mt-5 flex max-w-md items-start gap-2.5 rounded-xl border border-gold/20 bg-gold-soft px-4 py-3 text-left text-[13px] text-gold"
-            >
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <span>Die App war um {formatTime(new Date(timer.interruptedAt))} Uhr inaktiv. Der Timer wurde dort angehalten – die Zeit danach wird nicht gezählt.</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {!timer && (
           <div className="mt-9 flex w-full max-w-xl flex-col items-center gap-5">

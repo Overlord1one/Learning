@@ -10,7 +10,7 @@ export function Toaster() {
   const toasts = useAppStore((s) => s.toasts);
   const dismiss = useAppStore((s) => s.dismissToast);
   return (
-    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 top-16 z-[80] flex flex-col items-center gap-2 px-4 lg:top-auto lg:right-6 lg:bottom-6 lg:left-auto lg:items-end">
+    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 top-[calc(4rem+env(safe-area-inset-top))] z-[80] flex flex-col items-center gap-2 px-4 lg:top-auto lg:right-6 lg:bottom-6 lg:left-auto lg:items-end">
       <AnimatePresence initial={false}>
         {toasts.map((t) => {
           const Icon = ICON[t.tone];

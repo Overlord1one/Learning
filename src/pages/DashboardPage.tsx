@@ -11,6 +11,7 @@ import { CreditCoin, ProductVisual } from '../components/ui/visuals';
 import { StatCard } from '../components/StatCard';
 import { ActivityList } from '../components/ActivityList';
 import { GoalPickerDialog } from '../components/shop/GoalPicker';
+import { InstallHint } from '../components/InstallHint';
 
 function LevelAvatar({ level, ratio }: { level: number; ratio: number }) {
   return (
@@ -53,7 +54,7 @@ function GoalCard() {
     <Card className="relative overflow-hidden lg:col-span-2" padded={false}>
       <div className="pointer-events-none absolute -top-24 -right-20 size-72 rounded-full bg-[radial-gradient(circle,var(--color-gold-soft),transparent_70%)]" />
       <div className="relative grid grid-cols-1 gap-6 p-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:p-6">
-        <ProductVisual reward={goal} tone={ready ? 'ready' : 'locked'} className="aspect-[4/3] w-full sm:aspect-square" />
+        <ProductVisual reward={goal} tone={ready ? 'ready' : 'locked'} className="aspect-[2/1] w-full sm:aspect-square" />
         <div className="flex min-w-0 flex-col">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -174,6 +175,7 @@ export function DashboardPage() {
 
   return (
     <div>
+      <InstallHint />
       <header className="mb-8 flex items-center gap-4 sm:mb-10">
         <LevelAvatar level={player.level} ratio={player.progress.ratio} />
         <div className="min-w-0">

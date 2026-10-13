@@ -58,6 +58,7 @@ interface AppState {
   resumeTimer: () => void;
   updateTimerDetails: (patch: { categoryId?: string; goal?: string }) => void;
   heartbeat: () => void;
+  resolveAway: (count: boolean) => void;
   discardTimer: () => void;
   finishTimer: (input: cmd.CommitTimerInput) => Result<StudySession>;
   // Shop
@@ -166,16 +167,9 @@ export const useAppStore = create<AppState>()((set, get) => {
     heartbeat() {
       const { data } = get();
       if (!data.activeTimer || data.activeTimer.status !== 'running') return;
-      const timer = reconcileTimer(data.activeTimer, now());
-      set({ data: { ...data, activeTimer: timer } });
-      if (timer.status === 'paused') {
-        get().pushToast({
-          tone: 'info',
-          title: 'Session pausiert',
-          message: 'Die App war längere Zeit inaktiv. Die Zeit wurde bis zur letzten Aktivität gezählt.',
-        });
-      }
+      set({ data: { ...data, activeTimer: reconcileTimer(data.activeTimer, now()) } });
     },
+    resolveAway: (count) => void apply(cmd.resolveTimerAway(get().data, count, { now: now() })),
     discardTimer: () => void apply(cmd.discardTimer(get().data)),
     finishTimer(input) {
       const prev = get().data;

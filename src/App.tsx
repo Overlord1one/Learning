@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { MotionConfig } from 'motion/react';
 import { AppShell } from './components/layout/AppShell';
 import { BackgroundServices } from './components/BackgroundServices';
 import { CelebrationOverlay } from './components/overlays/CelebrationOverlay';
 import { Toaster } from './components/overlays/Toaster';
+import { AwayPrompt } from './components/overlays/AwayPrompt';
 import { useAppStore } from './store/appStore';
 import { DashboardPage } from './pages/DashboardPage';
 import { StudyPage } from './pages/StudyPage';
@@ -19,7 +20,7 @@ export function App() {
   const motion = useAppStore((s) => s.data.settings.motion);
   return (
     <MotionConfig reducedMotion={motion === 'reduced' ? 'always' : motion === 'full' ? 'never' : 'user'}>
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<DashboardPage />} />
@@ -38,10 +39,11 @@ export function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        <AwayPrompt />
         <CelebrationOverlay />
         <Toaster />
         <BackgroundServices />
-      </BrowserRouter>
+      </HashRouter>
     </MotionConfig>
   );
 }

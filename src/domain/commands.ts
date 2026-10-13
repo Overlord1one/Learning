@@ -8,7 +8,7 @@ import { balanceCents, creditsForMinutes, MAX_SESSION_MINUTES } from './economy'
 import { dayKey, isValidDayKey } from './dates';
 import { formatSC } from './format';
 import { createId } from './ids';
-import { pauseTimerAt, resumeTimerAt, timerElapsedMs } from './timer';
+import { pauseTimerAt, resolveAway, resumeTimerAt, timerElapsedMs } from './timer';
 import { createInitialData, DEFAULT_REWARDS, PREOWNED_REWARDS } from './defaults';
 import { fail, ok } from './types';
 import type {
@@ -219,6 +219,7 @@ export function startTimer(data: AppData, input: { categoryId: string; goal: str
 
 export function pauseTimer(data: AppData, { now }: Ctx): Result<AppData> {
   if (!data.activeTimer) return fail('Keine aktive Session.');
+  if (data.activeTimer.interruptedAt) return fail('Bitte entscheide zuerst, ob die Zeit außerhalb der App mitzählt.');
   return ok({ ...data, activeTimer: pauseTimerAt(data.activeTimer, now) });
 }
 
@@ -230,6 +231,12 @@ export function resumeTimer(data: AppData, { now }: Ctx): Result<AppData> {
 export function updateTimerDetails(data: AppData, patch: { categoryId?: string; goal?: string }): Result<AppData> {
   if (!data.activeTimer) return fail('Keine aktive Session.');
   return ok({ ...data, activeTimer: { ...data.activeTimer, ...patch } });
+}
+
+/** Decide whether time spent outside the app counts as study time. */
+export function resolveTimerAway(data: AppData, count: boolean, { now }: Ctx): Result<AppData> {
+  if (!data.activeTimer) return fail('Keine aktive Session.');
+  return ok({ ...data, activeTimer: resolveAway(data.activeTimer, count, now) });
 }
 
 export function discardTimer(data: AppData): Result<AppData> {
@@ -251,6 +258,7 @@ export interface CommitTimerInput {
 export function commitTimer(data: AppData, input: CommitTimerInput, ctx: Ctx): Result<AddSessionOutcome> {
   const timer = data.activeTimer;
   if (!timer) return fail('Keine aktive Session.');
+  if (timer.interruptedAt) return fail('Bitte entscheide zuerst, ob die Zeit außerhalb der App mitzählt.');
   const measured = Math.max(1, Math.ceil(timerElapsedMs(timer, ctx.now) / 60_000));
   if (input.minutes > measured) {
     return fail(`Die bestätigte Zeit kann die gemessene Zeit (${measured} Min.) nicht überschreiten.`);

@@ -147,12 +147,14 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 function MobileTopBar() {
   const player = usePlayer();
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line-soft bg-bg/85 px-4 backdrop-blur-xl lg:hidden">
+    <header className="pt-safe sticky top-0 z-30 border-b border-line-soft bg-bg/85 backdrop-blur-xl lg:hidden">
+      <div className="flex h-14 items-center justify-between px-4">
       <Logo />
       <div className="flex items-center gap-2">
         <TimerPill compact />
         <span className="rounded-full border border-line px-2 py-1 text-[11.5px] font-medium whitespace-nowrap text-muted">Lv. {player.level}</span>
         <CreditChip />
+      </div>
       </div>
     </header>
   );
@@ -162,7 +164,7 @@ function MobileNav() {
   return (
     <nav
       aria-label="Hauptnavigation"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line-soft bg-[#0d0f13]/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+      className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line-soft bg-[#0d0f13]/92 backdrop-blur-xl lg:hidden"
     >
       <div className="mx-auto grid max-w-lg grid-cols-6">
         {NAV_ITEMS.map((item) => (
@@ -236,7 +238,7 @@ export function AppShell() {
             animate={{ opacity: 1, y: 0 }}
             exit={reduced ? undefined : { opacity: 0, y: -4 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className={cn('mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6 lg:px-10 lg:pt-10', focusMode ? 'pb-10' : 'pb-28 lg:pb-14')}
+            className={cn('mx-auto w-full max-w-[1180px] px-4 pt-6 sm:px-6 lg:px-10 lg:pt-10', focusMode ? 'pt-[max(1.5rem,env(safe-area-inset-top))] pb-10' : 'pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-14')}
           >
             <FrozenOutlet />
           </motion.div>

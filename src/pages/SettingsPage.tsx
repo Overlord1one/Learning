@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  Smartphone,
   RotateCcw,
   ShoppingBag,
   Tags,
@@ -34,6 +35,8 @@ import { ProductVisual } from '../components/ui/visuals';
 import { CategoryDialog } from '../components/study/CategoryDialog';
 import { RewardFormDialog } from '../components/shop/RewardFormDialog';
 import { cn } from '../lib/cn';
+import { isStandalone, saveFile } from '../lib/pwa';
+import { InstallSteps } from '../components/InstallHint';
 
 function Section({ id, icon: Icon, title, description, children, className }: { id?: string; icon: LucideIcon; title: string; description?: string; children: ReactNode; className?: string }) {
   return (
@@ -510,15 +513,10 @@ function DataSection() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmFactory, setConfirmFactory] = useState(false);
 
-  const exportData = () => {
+  const exportData = async () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `setup-quest-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    pushToast({ tone: 'success', title: 'Export erstellt' });
+    const result = await saveFile(blob, `setup-quest-backup-${new Date().toISOString().slice(0, 10)}.json`);
+    if (result !== 'cancelled') pushToast({ tone: 'success', title: 'Export erstellt', message: result === 'shared' ? 'Tipp: „In Dateien sichern“ wählen.' : undefined });
   };
 
   const onFile = async (file: File | undefined) => {
@@ -536,7 +534,7 @@ function DataSection() {
   return (
     <Section id="daten" icon={Database} title="Daten" description="Alle Daten liegen lokal in diesem Browser. Sichere sie regelmäßig als JSON.">
       <div className="flex flex-wrap gap-2">
-        <Button icon={Download} onClick={exportData}>
+        <Button icon={Download} onClick={() => void exportData()}>
           Exportieren
         </Button>
         <Button icon={Upload} onClick={() => fileRef.current?.click()}>
@@ -606,6 +604,22 @@ function DataSection() {
   );
 }
 
+function DeviceSection() {
+  const installed = isStandalone();
+  return (
+    <Section icon={Smartphone} title="iPhone-App" description={installed ? 'Setup Quest läuft als installierte App.' : 'Installiere Setup Quest auf deinem Home-Bildschirm.'}>
+      {installed ? (
+        <p className="text-sm text-success">Installiert – die App funktioniert auch offline.</p>
+      ) : (
+        <InstallSteps />
+      )}
+      <p className="mt-4 rounded-xl border border-line-soft bg-[#111418] px-4 py-3 text-[13px] leading-relaxed text-muted">
+        Deine Daten werden nur auf diesem Gerät gespeichert. Öffne die App immer über dasselbe Symbol und erstelle ab und zu einen Export als Sicherung – zum Beispiel in iCloud Drive über „In Dateien sichern“.
+      </p>
+    </Section>
+  );
+}
+
 export function SettingsPage() {
   const location = useLocation();
   useEffect(() => {
@@ -623,6 +637,7 @@ export function SettingsPage() {
           <AppearanceSection />
         </div>
         <div className="flex flex-col gap-5">
+          <DeviceSection />
           <CategoriesSection />
           <RanksSection />
           <DataSection />

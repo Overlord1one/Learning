@@ -11,13 +11,14 @@ import {
   resumeTimer,
   updateSession,
   updateSettings,
+  resolveTimerAway,
 } from './commands';
 import { balanceCents, creditsForMinutes, levelForXp, minutesToEarn, totalXp, DEFAULT_RATES } from './economy';
 import { goalReward, playerSnapshot, projectCompletion, rewardProgress, studyStats } from './stats';
 import { evaluateAchievements } from './achievements';
 import { validateAppData } from './schema';
 import { rankForLevel, DEFAULT_RANKS } from './ranks';
-import { reconcileTimer, timerElapsedMs } from './timer';
+import { awayMs, reconcileTimer, resolveAway, timerElapsedMs } from './timer';
 import { formatCredits } from './format';
 import type { AppData } from './types';
 
@@ -236,14 +237,36 @@ describe('timer', () => {
     expect(timerElapsedMs(data.activeTimer!, new Date(t0.getTime() + 60 * 60_000))).toBe(30 * 60_000);
   });
 
-  it('pauses at the last heartbeat after an interruption', () => {
+  it('flags time spent outside the app and lets the user decide', () => {
     const t0 = new Date(2026, 9, 13, 10, 0, 0);
+    const at = (min: number) => new Date(t0.getTime() + min * 60_000);
     const data = unwrap(startTimer(createInitialData(t0), { categoryId: 'cat-mathe', goal: '' }, { now: t0 }));
-    const timer = { ...data.activeTimer!, heartbeatAt: new Date(t0.getTime() + 25 * 60_000).toISOString() };
-    const reconciled = reconcileTimer(timer, new Date(t0.getTime() + 8 * 3600_000));
-    expect(reconciled.status).toBe('paused');
-    expect(reconciled.interruptedAt).not.toBeNull();
-    expect(timerElapsedMs(reconciled, new Date(t0.getTime() + 9 * 3600_000))).toBe(25 * 60_000);
+    // App last seen after 25 min (e.g. phone locked), user returns after 60 min.
+    const timer = { ...data.activeTimer!, heartbeatAt: at(25).toISOString() };
+    const flagged = reconcileTimer(timer, at(60));
+    expect(flagged.status).toBe('running');
+    expect(flagged.interruptedAt).toBe(at(25).toISOString());
+    expect(awayMs(flagged, at(60))).toBe(35 * 60_000);
+    // Re-checking while undecided keeps the original start of the gap.
+    expect(reconcileTimer(flagged, at(70)).interruptedAt).toBe(at(25).toISOString());
+    // Counted: the full 60 minutes stay.
+    expect(timerElapsedMs(resolveAway(flagged, true, at(60)), at(60))).toBe(60 * 60_000);
+    // Not counted: 25 minutes, then the timer continues from now.
+    const removed = resolveAway(flagged, false, at(60));
+    expect(removed.interruptedAt).toBeNull();
+    expect(timerElapsedMs(removed, at(60))).toBe(25 * 60_000);
+    expect(timerElapsedMs(removed, at(70))).toBe(35 * 60_000);
+  });
+
+  it('cannot finish while a gap is undecided', () => {
+    const t0 = new Date(NOW.getTime() - 60 * 60_000);
+    let data = unwrap(startTimer(createInitialData(t0), { categoryId: 'cat-mathe', goal: '' }, { now: t0 }));
+    data = { ...data, activeTimer: reconcileTimer(data.activeTimer!, NOW) };
+    const input = { minutes: 30, categoryId: 'cat-mathe', goal: '', description: '', taskCompleted: null };
+    expect(commitTimer(data, input, ctx).ok).toBe(false);
+    // Counting the time away (e.g. studied with the phone locked) allows finishing.
+    data = unwrap(resolveTimerAway(data, true, ctx));
+    expect(unwrap(commitTimer(data, input, ctx)).session.minutes).toBe(30);
   });
 
   it('cannot confirm more time than measured', () => {
