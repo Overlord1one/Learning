@@ -1,0 +1,118 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0b0d10;
+  --color-card: #15181d;
+  --color-elevated: #1d2229;
+  --color-hover: #232932;
+  --color-line: #292f38;
+  --color-line-soft: #20252c;
+  --color-fg: #f5f6f7;
+  --color-muted: #9098a5;
+  --color-faint: #636b78;
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: #67c9a0;
+  --color-success-soft: rgb(103 201 160 / 0.12);
+  --color-gold: #d9b46a;
+  --color-gold-soft: rgb(217 180 106 / 0.12);
+  --color-danger: #e5737a;
+  --color-danger-soft: rgb(229 115 122 / 0.12);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius-card: 18px;
+}
+
+:root {
+  --accent: #6b9fff;
+  --accent-soft: rgb(107 159 255 / 0.14);
+  color-scheme: dark;
+}
+:root[data-accent='gruen'] {
+  --accent: #67c9a0;
+  --accent-soft: rgb(103 201 160 / 0.14);
+}
+:root[data-accent='violett'] {
+  --accent: #a48cf2;
+  --accent-soft: rgb(164 140 242 / 0.14);
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle noise-free depth for cards */
+.surface {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.018), rgb(255 255 255 / 0) 40%), var(--color-card);
+  border: 1px solid var(--color-line-soft);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.6);
+}
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--accent);
+}
+
+/* Native form controls */
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+input[type='number']::-webkit-inner-spin-button {
+  opacity: 0.4;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+/* Recharts dark theme tweaks */
+.recharts-cartesian-grid line {
+  stroke: var(--color-line-soft);
+}
+.recharts-text {
+  fill: var(--color-faint);
+  font-size: 11px;
+}
+.recharts-tooltip-cursor {
+  fill: rgb(255 255 255 / 0.03);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+}
