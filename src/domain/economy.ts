@@ -5,8 +5,9 @@ export const CENTS_PER_CREDIT = 100;
 export const XP_PER_LEVEL = 300;
 export const MAX_SESSION_MINUTES = 24 * 60;
 
+/** 16 SC per hour at ×1 – one hour of math (×1,5) is 24 SC ≈ 6 € at ~4 SC per euro. */
 export const DEFAULT_RATES: RateSnapshot = {
-  creditCentsPerHour: 10 * CENTS_PER_CREDIT,
+  creditCentsPerHour: 16 * CENTS_PER_CREDIT,
   xpPerHour: 60,
 };
 

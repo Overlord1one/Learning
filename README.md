@@ -40,7 +40,7 @@ React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide ·
 
 | | Formel | Standard |
 |---|---|---|
-| Credits | Minuten × Rate × Gewichtung / 60 | 10 SC pro Stunde bei ×1 (90 Min. = 15 SC) |
+| Credits | Minuten × Rate × Gewichtung / 60 | 16 SC pro Stunde bei ×1 (1 h Mathe ×1,5 = 24 SC ≈ 6 €) |
 | XP | Minuten × Rate × Gewichtung / 60 | 60 XP pro Stunde bei ×1 |
 | Level | Level L beginnt bei 150 · L · (L − 1) XP | Level 2 bei 300 XP, Level 5 bei 3.000, Level 10 bei 13.500 |
 
@@ -48,7 +48,7 @@ React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide ·
 
 **Wochenziele:** optional pro Fach unter *Einstellungen → Lernkategorien & Wochenziele*; sobald eines gesetzt ist, erscheint der Wochenplan auf dem Dashboard.
 
-**Belohnungen:** Mauspad 150 SC · MX Master 3S 400 SC · Lofree Flow 2 700 SC · DT 900 PRO X 800 SC · FlexiSpot E7 Pro 2.500 SC (gesamt 4.550 SC ≈ 455 h bei ×1).
+**Belohnungen:** Mauspad 150 SC · MX Master 3S 400 SC · Lofree Flow 2 700 SC · DT 900 PRO X 800 SC · FlexiSpot E7 Pro 2.500 SC (gesamt 4.550 SC ≈ 284 h bei ×1, ≈ 190 h Mathe).
 
 - Credits werden intern als ganzzahlige **Centi-Credits** (1 SC = 100) gespeichert – keine Gleitkommafehler.
 - Das Guthaben ist die **Summe eines Ledgers** (`session_earn`, `session_adjust`, `session_revoke`, `purchase`, `refund`). Es gibt keinen separat gespeicherten Kontostand.

@@ -193,7 +193,7 @@ function EconomySection() {
   };
 
   return (
-    <Section icon={Coins} title="Belohnungsraten" description="Standard: 10 SC und 60 XP pro Stunde – multipliziert mit der Gewichtung des Fachs.">
+    <Section icon={Coins} title="Belohnungsraten" description="Standard: 16 SC und 60 XP pro Stunde – multipliziert mit der Gewichtung des Fachs.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Setup Credits pro Stunde" htmlFor="set-sc">
           <Input id="set-sc" inputMode="decimal" value={credits} onChange={(e) => setCredits(e.target.value)} />

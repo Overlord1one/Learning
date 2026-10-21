@@ -10,11 +10,11 @@
 export type ISODateTime = string; // 2026-10-13T08:15:00.000Z
 export type DayKey = string; // 2026-10-13 (local calendar day)
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** Rates that were valid when a session was recorded. Locked per session. */
 export interface RateSnapshot {
-  /** Centi credits earned per 60 focused minutes (default 1000 = 10 SC). */
+  /** Centi credits earned per 60 focused minutes (default 1600 = 16 SC). */
   creditCentsPerHour: number;
   /** XP earned per 60 focused minutes (default 60). */
   xpPerHour: number;

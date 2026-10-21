@@ -1,6 +1,6 @@
 /** Runtime validation for persisted and imported data. */
 import { z } from 'zod';
-import { balanceCents, creditsForMinutes } from './economy';
+import { balanceCents, creditsForMinutes, DEFAULT_RATES } from './economy';
 import { creditedForSession } from './commands';
 import { isValidDayKey } from './dates';
 import { SCHEMA_VERSION } from './types';
@@ -174,6 +174,7 @@ export function migrate(raw: unknown): unknown {
   // v5: lectures worth half (×0,75 → ×0,375); v6: half again (→ ×0,1875).
   if (isRecord(data) && data.schemaVersion === 4) data = changeDefaultWeight(data, 'cat-vorlesungen', 75, 37.5, 5);
   if (isRecord(data) && data.schemaVersion === 5) data = changeDefaultWeight(data, 'cat-vorlesungen', 37.5, 18.75, 6);
+  if (isRecord(data) && data.schemaVersion === 6) data = migrateV6toV7(data);
   return data;
 }
 
@@ -205,10 +206,22 @@ function migrateV2toV3(raw: Record<string, unknown>): unknown {
  * corrections. Does nothing (returns false) if the balance would turn negative.
  */
 function reweightSessions(data: Record<string, any>, weightFor: (s: StudySession) => number): boolean {
+  return rebookSessions(data, (s) => ({ ...s, weightPercent: weightFor(s) }), (s) => `Fach-Gewichtung ${s.weightPercent} % angewendet`);
+}
+
+/**
+ * Apply a change to sessions and book every resulting credit difference as a
+ * traceable correction. Does nothing (returns false) if the balance would turn negative.
+ */
+function rebookSessions(
+  data: Record<string, any>,
+  change: (s: StudySession) => StudySession,
+  note: (s: StudySession) => string,
+): boolean {
   const sessions: StudySession[] = Array.isArray(data.sessions) ? data.sessions : [];
   const transactions: CreditTransaction[] = Array.isArray(data.transactions) ? data.transactions : [];
   const now = new Date().toISOString();
-  const weighted = sessions.map((s) => ({ ...s, weightPercent: weightFor(s) }));
+  const weighted = sessions.map(change);
   const corrections: CreditTransaction[] = [];
   for (const s of weighted) {
     const credited = transactions.filter((t) => t.sessionId === s.id).reduce((a, t) => a + t.amountCents, 0);
@@ -222,7 +235,7 @@ function reweightSessions(data: Record<string, any>, weightFor: (s: StudySession
         sessionId: s.id,
         purchaseId: null,
         rewardId: null,
-        note: `Fach-Gewichtung ${s.weightPercent} % angewendet`,
+        note: note(s),
       });
     }
   }
@@ -261,6 +274,27 @@ function migrateV3toV4(raw: Record<string, unknown>): unknown {
   }
   if (isRecord(data.settings) && data.settings.dailyGoalMinutes === 240) data.settings.dailyGoalMinutes = 120;
   data.schemaVersion = 4;
+  return data;
+}
+
+/**
+ * v7: base rate 10 → 16 SC per hour (1 h math ≈ 6 €). If the rate was never
+ * customised, every session recorded at 10 SC/h is re-booked at 16 SC/h, so
+ * the balance is as if the new rate had always applied.
+ */
+function migrateV6toV7(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  const OLD = 1000;
+  const NEW = DEFAULT_RATES.creditCentsPerHour;
+  if (isRecord(data.settings) && isRecord(data.settings.rates) && data.settings.rates.creditCentsPerHour === OLD) {
+    data.settings.rates = { ...data.settings.rates, creditCentsPerHour: NEW };
+    rebookSessions(
+      data,
+      (s) => (s.rates.creditCentsPerHour === OLD ? { ...s, rates: { ...s.rates, creditCentsPerHour: NEW } } : s),
+      () => `Neue Grundrate ${NEW / 100} SC/h rückwirkend angewendet`,
+    );
+  }
+  data.schemaVersion = 7;
   return data;
 }
 
