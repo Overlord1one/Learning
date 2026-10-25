@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 import { Dialog } from '../ui/dialog';
-import { Button, Field, Input, Select, Textarea, Toggle } from '../ui/primitives';
+import { Button, Field, Input, Segmented, Select, Textarea, Toggle } from '../ui/primitives';
 import { ProductVisual, REWARD_ICON_OPTIONS } from '../ui/visuals';
 import { useAppStore } from '../../store/appStore';
 import { useData } from '../../store/hooks';
 import { minutesToEarn } from '../../domain/economy';
 import { formatCredits, formatHoursPrecise, parseCreditsInput, parseDecimal } from '../../domain/format';
-import type { Reward, RewardIcon, RewardPriority } from '../../domain/types';
+import type { Reward, RewardIcon, RewardPriority, Wallet } from '../../domain/types';
 import { fileToCompressedDataUrl } from '../../lib/image';
 
 interface Props {
@@ -15,9 +15,11 @@ interface Props {
   onClose: () => void;
   reward?: Reward | null;
   onSaved?: (id: string) => void;
+  /** Account preselected for new rewards. */
+  defaultWallet?: Wallet;
 }
 
-export function RewardFormDialog({ open, onClose, reward, onSaved }: Props) {
+export function RewardFormDialog({ open, onClose, reward, onSaved, defaultWallet = 'main' }: Props) {
   const data = useData();
   const addReward = useAppStore((s) => s.addReward);
   const updateReward = useAppStore((s) => s.updateReward);
@@ -35,6 +37,7 @@ export function RewardFormDialog({ open, onClose, reward, onSaved }: Props) {
   const [productUrl, setProductUrl] = useState('');
   const [priority, setPriority] = useState<RewardPriority>('mittel');
   const [preOwned, setPreOwned] = useState(false);
+  const [wallet, setWallet] = useState<Wallet>(defaultWallet);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -51,12 +54,13 @@ export function RewardFormDialog({ open, onClose, reward, onSaved }: Props) {
     setProductUrl(reward?.productUrl ?? '');
     setPriority(reward?.priority ?? 'mittel');
     setPreOwned(reward?.preOwned ?? false);
+    setWallet(reward?.wallet ?? defaultWallet);
     setError(null);
-  }, [open, reward]);
+  }, [open, reward, defaultWallet]);
 
   const priceCents = preOwned && price.trim() === '' ? 0 : parseCreditsInput(price);
   const realCents = realPrice.trim() === '' ? null : Math.round(parseDecimal(realPrice) * 100);
-  const hours = Number.isFinite(priceCents) && priceCents > 0 ? minutesToEarn(priceCents, data.settings.rates) : 0;
+  const hours = Number.isFinite(priceCents) && priceCents > 0 ? minutesToEarn(priceCents, data.settings.rates, wallet) : 0;
   const categories = [...new Set(data.rewards.map((r) => r.category))];
 
   const onFile = async (file: File | undefined) => {
@@ -86,6 +90,7 @@ export function RewardFormDialog({ open, onClose, reward, onSaved }: Props) {
       productUrl: productUrl.trim(),
       priority,
       preOwned,
+      wallet,
     };
     if (reward) {
       const r = updateReward(reward.id, input);
@@ -143,7 +148,26 @@ export function RewardFormDialog({ open, onClose, reward, onSaved }: Props) {
         <Field label="Variante / Farbe" htmlFor="rw-var">
           <Input id="rw-var" value={variant} maxLength={60} onChange={(e) => setVariant(e.target.value)} placeholder="Optional" />
         </Field>
-        <Field label="Virtueller Preis (SC)" htmlFor="rw-price" hint={hours > 0 ? `≈ ${formatHoursPrecise(hours)} Lernzeit ab null` : preOwned ? 'Für vorhandene Artikel optional' : undefined}>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <span className="text-[13px] font-medium text-muted">Konto</span>
+          <Segmented<Wallet>
+            label="Konto"
+            value={wallet}
+            onChange={setWallet}
+            options={[
+              { value: 'main', label: 'Setup Credits (SC)' },
+              { value: 'creative', label: 'Kreativ-Credits (KC)' },
+            ]}
+          />
+          <p className="text-xs text-faint">
+            {wallet === 'main' ? 'Wird mit allen Lern-Credits freigeschaltet.' : 'Nur mit Kreativ-Credits aus dem Video-Schnitt freischaltbar – für Kreativ-Equipment.'}
+          </p>
+        </div>
+        <Field
+          label={`Virtueller Preis (${wallet === 'main' ? 'SC' : 'KC'})`}
+          htmlFor="rw-price"
+          hint={hours > 0 ? `≈ ${formatHoursPrecise(hours)} ${wallet === 'main' ? 'Lernzeit' : 'Video-Schnitt'} ab null` : preOwned ? 'Für vorhandene Artikel optional' : undefined}
+        >
           <Input id="rw-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="z. B. 120" />
         </Field>
         <Field label="Realer Preis (€, optional)" htmlFor="rw-real" hint="Nur zur Information – keine Auswirkung auf Credits.">

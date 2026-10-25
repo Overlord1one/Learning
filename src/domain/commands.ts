@@ -4,12 +4,12 @@
  * They are framework-agnostic so a future backend (e.g. Supabase) can reuse
  * the same rules server-side.
  */
-import { balanceCents, creditsForMinutes, MAX_SESSION_MINUTES } from './economy';
+import { balanceCents, MAX_SESSION_MINUTES, sessionWalletCredits } from './economy';
+import { formatAmount } from './format';
 import { dayKey, isValidDayKey } from './dates';
-import { formatSC } from './format';
 import { createId } from './ids';
 import { pauseTimerAt, resolveAway, resumeTimerAt, timerElapsedMs } from './timer';
-import { createInitialData, DEFAULT_REWARDS, PREOWNED_REWARDS } from './defaults';
+import { createInitialData, CREATIVE_REWARDS, DEFAULT_REWARDS, PREOWNED_REWARDS } from './defaults';
 import { fail, ok } from './types';
 import type {
   AppData,
@@ -20,6 +20,7 @@ import type {
   StudyCategory,
   StudySession,
   TransactionType,
+  Wallet,
 } from './types';
 
 export interface Ctx {
@@ -36,9 +37,11 @@ function txn(
   now: Date,
   refs: Partial<Pick<CreditTransaction, 'sessionId' | 'purchaseId' | 'rewardId'>>,
   note: string,
+  wallet: Wallet = 'main',
 ): CreditTransaction {
   return {
     id: createId('tx'),
+    wallet,
     type,
     amountCents,
     createdAt: now.toISOString(),
@@ -49,11 +52,43 @@ function txn(
   };
 }
 
-/** Net credits the ledger currently attributes to a session. */
-export function creditedForSession(data: AppData, sessionId: string): number {
+/** Net credits the ledger currently attributes to a session on one account. */
+export function creditedForSession(data: Pick<AppData, 'transactions'>, sessionId: string, wallet: Wallet = 'main'): number {
   let sum = 0;
-  for (const t of data.transactions) if (t.sessionId === sessionId) sum += t.amountCents;
+  for (const t of data.transactions) if (t.sessionId === sessionId && t.wallet === wallet) sum += t.amountCents;
   return sum;
+}
+
+export const WALLETS: Wallet[] = ['main', 'creative'];
+
+/**
+ * Bring the ledger in line with what a session is worth on every account
+ * (`session` = null means it was deleted). Refuses to make a balance negative.
+ */
+function bookSession(
+  data: AppData,
+  sessionId: string,
+  session: StudySession | null,
+  type: TransactionType,
+  note: string,
+  now: Date,
+): Result<CreditTransaction[]> {
+  const added: CreditTransaction[] = [];
+  for (const wallet of WALLETS) {
+    const target = session ? sessionWalletCredits(session, wallet) : 0;
+    const delta = target - creditedForSession(data, sessionId, wallet);
+    if (delta === 0) continue;
+    if (delta < 0 && balanceCents(data.transactions, wallet) + delta < 0) {
+      return fail(wallet === 'main' ? NEGATIVE_BALANCE_HINT : NEGATIVE_CREATIVE_HINT);
+    }
+    const isFirstEarn = type === 'session_earn' && !data.transactions.some((t) => t.sessionId === sessionId && t.wallet === wallet);
+    added.push(txn(isFirstEarn || type !== 'session_earn' ? type : 'session_adjust', delta, now, { sessionId }, wallet === 'main' ? note : `${note} (Kreativ-Konto)`, wallet));
+  }
+  return ok(added);
+}
+
+export function categoryCreative(data: AppData, categoryId: string): boolean {
+  return data.categories.find((c) => c.id === categoryId)?.creative ?? false;
 }
 
 export function activePurchaseFor(data: AppData, rewardId: string) {
@@ -78,6 +113,9 @@ function minutesOnDay(data: AppData, date: string, excludeId?: string): number {
   for (const s of data.sessions) if (s.date === date && s.id !== excludeId) sum += s.minutes;
   return sum;
 }
+
+const NEGATIVE_CREATIVE_HINT =
+  'Dein Kreativ-Konto würde dadurch negativ werden, weil die Kreativ-Credits bereits ausgegeben wurden. Mache zuerst eine Kreativ-Freischaltung rückgängig.';
 
 const NEGATIVE_BALANCE_HINT =
   'Dein Guthaben würde dadurch negativ werden, weil die Credits bereits ausgegeben wurden. Mache zuerst eine Freischaltung im Shop rückgängig.';
@@ -148,15 +186,17 @@ export function addSession(data: AppData, input: SessionInput, { now }: Ctx): Re
     taskCompleted: input.taskCompleted ?? null,
     rates: { ...data.settings.rates },
     weightPercent: categoryWeight(data, input.categoryId),
+    creative: categoryCreative(data, input.categoryId),
     createdAt: iso,
     updatedAt: iso,
   };
-  const amount = creditsForMinutes(session.minutes, session.rates, session.weightPercent);
-  const transactions = data.transactions.some((t) => t.type === 'session_earn' && t.sessionId === session.id)
-    ? data.transactions
-    : [...data.transactions, txn('session_earn', amount, now, { sessionId: session.id }, `${session.minutes} Min. gelernt`)];
-
-  return ok({ data: { ...data, sessions: [...data.sessions, session], transactions }, session, created: true });
+  const booked = bookSession(data, session.id, session, 'session_earn', `${session.minutes} Min. gelernt`, now);
+  if (!booked.ok) return booked;
+  return ok({
+    data: { ...data, sessions: [...data.sessions, session], transactions: [...data.transactions, ...booked.value] },
+    session,
+    created: true,
+  });
 }
 
 export type SessionPatch = Partial<
@@ -174,39 +214,24 @@ export function updateSession(data: AppData, id: string, patch: SessionPatch, { 
     description: (patch.description ?? current.description).trim(),
     // Moving a session to another subject applies that subject's weighting.
     weightPercent: patch.categoryId && patch.categoryId !== current.categoryId ? categoryWeight(data, patch.categoryId) : current.weightPercent,
+    creative: patch.categoryId && patch.categoryId !== current.categoryId ? categoryCreative(data, patch.categoryId) : current.creative,
     updatedAt: now.toISOString(),
   };
   const error = validateSessionFields(data, next, now, id);
   if (error) return fail(error);
 
-  const target = creditsForMinutes(next.minutes, next.rates, next.weightPercent);
-  const delta = target - creditedForSession(data, id);
-  if (delta < 0 && balanceCents(data.transactions) + delta < 0) return fail(NEGATIVE_BALANCE_HINT);
-
-  const transactions =
-    delta === 0
-      ? data.transactions
-      : [
-          ...data.transactions,
-          txn('session_adjust', delta, now, { sessionId: id }, `Session korrigiert: ${current.minutes} → ${next.minutes} Min.`),
-        ];
-  return ok({ ...data, sessions: data.sessions.map((s) => (s.id === id ? next : s)), transactions });
+  const booked = bookSession(data, id, next, 'session_adjust', `Session korrigiert: ${current.minutes} → ${next.minutes} Min.`, now);
+  if (!booked.ok) return booked;
+  return ok({ ...data, sessions: data.sessions.map((s) => (s.id === id ? next : s)), transactions: [...data.transactions, ...booked.value] });
 }
 
 /** Delete a session and revoke its credits. History stays traceable in the ledger. */
 export function deleteSession(data: AppData, id: string, { now }: Ctx): Result<AppData> {
   const session = data.sessions.find((s) => s.id === id);
   if (!session) return fail('Diese Session existiert nicht mehr.');
-  const credited = creditedForSession(data, id);
-  if (balanceCents(data.transactions) - credited < 0) return fail(NEGATIVE_BALANCE_HINT);
-  const transactions =
-    credited === 0
-      ? data.transactions
-      : [
-          ...data.transactions,
-          txn('session_revoke', -credited, now, { sessionId: id }, `Session gelöscht (${session.minutes} Min.)`),
-        ];
-  return ok({ ...data, sessions: data.sessions.filter((s) => s.id !== id), transactions });
+  const booked = bookSession(data, id, null, 'session_revoke', `Session gelöscht (${session.minutes} Min.)`, now);
+  if (!booked.ok) return booked;
+  return ok({ ...data, sessions: data.sessions.filter((s) => s.id !== id), transactions: [...data.transactions, ...booked.value] });
 }
 
 // ---------------------------------------------------------------------------
@@ -309,9 +334,9 @@ export function purchaseReward(data: AppData, rewardId: string, { now }: Ctx): R
   if (!reward || reward.archived) return fail('Diese Belohnung ist nicht verfügbar.');
   if (reward.preOwned) return fail('Diesen Artikel besitzt du bereits.');
   if (activePurchaseFor(data, rewardId)) return fail('Diese Belohnung ist bereits freigeschaltet.');
-  const balance = balanceCents(data.transactions);
+  const balance = balanceCents(data.transactions, reward.wallet);
   if (balance < reward.priceCents) {
-    return fail(`Nicht genug Credits. Es fehlen noch ${formatSC(reward.priceCents - balance)}.`);
+    return fail(`Nicht genug Credits. Es fehlen noch ${formatAmount(reward.priceCents - balance, reward.wallet)}.`);
   }
   const purchaseId = createId('pur');
   const iso = now.toISOString();
@@ -319,11 +344,20 @@ export function purchaseReward(data: AppData, rewardId: string, { now }: Ctx): R
     ...data,
     purchases: [
       ...data.purchases,
-      { id: purchaseId, rewardId, rewardName: reward.name, priceCents: reward.priceCents, unlockedAt: iso, realPurchasedAt: null, refundedAt: null },
+      {
+        id: purchaseId,
+        rewardId,
+        rewardName: reward.name,
+        wallet: reward.wallet,
+        priceCents: reward.priceCents,
+        unlockedAt: iso,
+        realPurchasedAt: null,
+        refundedAt: null,
+      },
     ],
     transactions: [
       ...data.transactions,
-      txn('purchase', -reward.priceCents, now, { purchaseId, rewardId }, `Freigeschaltet: ${reward.name}`),
+      txn('purchase', -reward.priceCents, now, { purchaseId, rewardId }, `Freigeschaltet: ${reward.name}`, reward.wallet),
     ],
   });
 }
@@ -339,7 +373,7 @@ export function refundPurchase(data: AppData, purchaseId: string, { now }: Ctx):
     purchases: data.purchases.map((p) => (p.id === purchaseId ? { ...p, refundedAt: iso } : p)),
     transactions: [
       ...data.transactions,
-      txn('refund', purchase.priceCents, now, { purchaseId, rewardId: purchase.rewardId }, `Rückgängig: ${purchase.rewardName}`),
+      txn('refund', purchase.priceCents, now, { purchaseId, rewardId: purchase.rewardId }, `Rückgängig: ${purchase.rewardName}`, purchase.wallet),
     ],
   });
 }
@@ -361,14 +395,25 @@ export function setRealPurchased(data: AppData, purchaseId: string, bought: bool
 
 export type RewardInput = Pick<
   Reward,
-  'name' | 'description' | 'category' | 'variant' | 'icon' | 'imageUrl' | 'priceCents' | 'realPriceEuroCents' | 'productUrl' | 'priority' | 'preOwned'
+  | 'name'
+  | 'description'
+  | 'category'
+  | 'variant'
+  | 'icon'
+  | 'imageUrl'
+  | 'priceCents'
+  | 'realPriceEuroCents'
+  | 'productUrl'
+  | 'priority'
+  | 'preOwned'
+  | 'wallet'
 >;
 
 function validateReward(input: RewardInput): string | null {
   if (!input.name.trim()) return 'Bitte gib einen Namen ein.';
   if (input.name.trim().length > 80) return 'Der Name ist zu lang (max. 80 Zeichen).';
   if (!input.preOwned && (!Number.isInteger(input.priceCents) || input.priceCents < 1)) {
-    return 'Der virtuelle Preis muss größer als 0 SC sein.';
+    return 'Der virtuelle Preis muss größer als 0 sein.';
   }
   if (input.priceCents > 100_000_00) return 'Der virtuelle Preis ist zu hoch.';
   if (input.realPriceEuroCents !== null && (!Number.isInteger(input.realPriceEuroCents) || input.realPriceEuroCents < 0)) {
@@ -405,6 +450,9 @@ export function updateReward(data: AppData, id: string, input: RewardInput): Res
   if (input.preOwned && activePurchaseFor(data, id)) {
     return fail('Eine freigeschaltete Belohnung kann nicht als „bereits vorhanden“ markiert werden. Mache die Freischaltung zuerst rückgängig.');
   }
+  if (input.wallet !== current.wallet && activePurchaseFor(data, id)) {
+    return fail('Das Konto einer freigeschalteten Belohnung kann nicht geändert werden. Mache die Freischaltung zuerst rückgängig.');
+  }
   // Price changes never touch past purchases – they keep their own price snapshot.
   return ok({
     ...data,
@@ -434,7 +482,7 @@ export function restoreReward(data: AppData, id: string): Result<AppData> {
 
 /** Restore the five original items (and the pre-owned mouse) to factory values. */
 export function restoreDefaultShop(data: AppData, { now }: Ctx): Result<AppData> {
-  const seeds = [...PREOWNED_REWARDS, ...DEFAULT_REWARDS];
+  const seeds = [...PREOWNED_REWARDS, ...DEFAULT_REWARDS, ...CREATIVE_REWARDS];
   const rewards = data.rewards.map((r) => {
     const seed = seeds.find((s) => s.id === r.id);
     return seed ? { ...seed, createdAt: r.createdAt } : r;
@@ -446,7 +494,7 @@ export function restoreDefaultShop(data: AppData, { now }: Ctx): Result<AppData>
 }
 
 export function setGoalReward(data: AppData, rewardId: string | null): Result<AppData> {
-  if (rewardId && !data.rewards.some((r) => r.id === rewardId && !r.archived && !r.preOwned)) {
+  if (rewardId && !data.rewards.some((r) => r.id === rewardId && !r.archived && !r.preOwned && r.wallet === 'main')) {
     return fail('Diese Belohnung kann nicht als Ziel gewählt werden.');
   }
   return ok({ ...data, settings: { ...data.settings, goalRewardId: rewardId } });
@@ -462,6 +510,7 @@ export function addCategory(
   color: string,
   weightPercent = 100,
   weeklyTargetMinutes = 0,
+  creative = false,
 ): Result<{ data: AppData; category: StudyCategory }> {
   const trimmed = name.trim();
   if (!validWeight(weightPercent)) return fail('Die Gewichtung ist ungültig.');
@@ -471,10 +520,10 @@ export function addCategory(
   const existing = data.categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   if (existing && !existing.archived) return fail('Diese Kategorie gibt es bereits.');
   if (existing) {
-    const category = { ...existing, archived: false, color, weightPercent, weeklyTargetMinutes };
+    const category = { ...existing, archived: false, color, weightPercent, weeklyTargetMinutes, creative };
     return ok({ data: { ...data, categories: data.categories.map((c) => (c.id === existing.id ? category : c)) }, category });
   }
-  const category: StudyCategory = { id: createId('cat'), name: trimmed, color, isDefault: false, archived: false, weightPercent, weeklyTargetMinutes };
+  const category: StudyCategory = { id: createId('cat'), name: trimmed, color, isDefault: false, archived: false, weightPercent, weeklyTargetMinutes, creative };
   return ok({ data: { ...data, categories: [...data.categories, category] }, category });
 }
 
@@ -504,6 +553,7 @@ export function renameCategory(
   color: string,
   weightPercent?: number,
   weeklyTargetMinutes?: number,
+  creative?: boolean,
 ): Result<AppData> {
   const trimmed = name.trim();
   if (weightPercent !== undefined && !validWeight(weightPercent)) return fail('Die Gewichtung ist ungültig.');
@@ -520,6 +570,7 @@ export function renameCategory(
             color,
             weightPercent: weightPercent ?? c.weightPercent,
             weeklyTargetMinutes: weeklyTargetMinutes ?? c.weeklyTargetMinutes,
+            creative: creative ?? c.creative,
           } : c)),
   });
 }
@@ -532,6 +583,9 @@ export function updateSettings(data: AppData, patch: Partial<Settings>): Result<
   const next = { ...data.settings, ...patch };
   if (next.rates.creditCentsPerHour < 1 || next.rates.creditCentsPerHour > 100_000) {
     return fail('Die Credit-Rate muss zwischen 0,01 und 1.000 SC pro Stunde liegen.');
+  }
+  if (!Number.isInteger(next.rates.creativeCentsPerHour) || next.rates.creativeCentsPerHour < 0 || next.rates.creativeCentsPerHour > 100_000) {
+    return fail('Die Kreativ-Rate muss zwischen 0 und 1.000 KC pro Stunde liegen.');
   }
   if (!Number.isInteger(next.rates.xpPerHour) || next.rates.xpPerHour < 1 || next.rates.xpPerHour > 10_000) {
     return fail('Die XP-Rate muss eine ganze Zahl zwischen 1 und 10.000 sein.');

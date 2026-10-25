@@ -1,4 +1,4 @@
-import type { CreditTransaction, RateSnapshot, StudySession } from './types';
+import type { CreditTransaction, RateSnapshot, StudySession, Wallet } from './types';
 
 export const CENTS_PER_CREDIT = 100;
 /** XP needed for level 2. Every further level needs 300 XP more than the previous one. */
@@ -9,6 +9,8 @@ export const MAX_SESSION_MINUTES = 24 * 60;
 export const DEFAULT_RATES: RateSnapshot = {
   creditCentsPerHour: 16 * CENTS_PER_CREDIT,
   xpPerHour: 60,
+  /** 16 KC per hour of video editing – a ~300 € monitor (1.200 KC) takes ~75 h. */
+  creativeCentsPerHour: 16 * CENTS_PER_CREDIT,
 };
 
 /** Integer division with round-half-up – deterministic for positive inputs. */
@@ -31,13 +33,22 @@ export function xpForMinutes(minutes: number, rates: RateSnapshot, weightPercent
   return roundDiv(Math.round(minutes) * rates.xpPerHour * weightPercent, 60 * 100);
 }
 
+/** Kreativ-Credits for minutes in a creative subject – not weighted. */
+export function creativeCreditsForMinutes(minutes: number, rates: RateSnapshot): number {
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0;
+  return roundDiv(Math.round(minutes) * rates.creativeCentsPerHour, 60);
+}
+
 export const sessionCredits = (s: StudySession) => creditsForMinutes(s.minutes, s.rates, s.weightPercent);
+export const sessionCreativeCredits = (s: StudySession) => (s.creative ? creativeCreditsForMinutes(s.minutes, s.rates) : 0);
+/** Credits a session is worth on the given account. */
+export const sessionWalletCredits = (s: StudySession, wallet: Wallet) => (wallet === 'main' ? sessionCredits(s) : sessionCreativeCredits(s));
 export const sessionXp = (s: StudySession) => xpForMinutes(s.minutes, s.rates, s.weightPercent);
 
-/** Current spendable balance – the single source of truth is the ledger. */
-export function balanceCents(transactions: readonly CreditTransaction[]): number {
+/** Current spendable balance of one account – the single source of truth is the ledger. */
+export function balanceCents(transactions: readonly CreditTransaction[], wallet: Wallet = 'main'): number {
   let sum = 0;
-  for (const t of transactions) sum += t.amountCents;
+  for (const t of transactions) if (t.wallet === wallet) sum += t.amountCents;
   return sum;
 }
 
@@ -48,9 +59,10 @@ export function totalXp(sessions: readonly StudySession[]): number {
 }
 
 /** Credits earned through studying (net of edits / deletions). */
-export function earnedCents(transactions: readonly CreditTransaction[]): number {
+export function earnedCents(transactions: readonly CreditTransaction[], wallet: Wallet = 'main'): number {
   let sum = 0;
   for (const t of transactions) {
+    if (t.wallet !== wallet) continue;
     if (t.type === 'session_earn' || t.type === 'session_adjust' || t.type === 'session_revoke') {
       sum += t.amountCents;
     }
@@ -59,9 +71,10 @@ export function earnedCents(transactions: readonly CreditTransaction[]): number 
 }
 
 /** Credits spent on rewards (net of refunds). */
-export function spentCents(transactions: readonly CreditTransaction[]): number {
+export function spentCents(transactions: readonly CreditTransaction[], wallet: Wallet = 'main'): number {
   let sum = 0;
   for (const t of transactions) {
+    if (t.wallet !== wallet) continue;
     if (t.type === 'purchase' || t.type === 'refund') sum -= t.amountCents;
   }
   return sum;
@@ -71,12 +84,14 @@ export function spentCents(transactions: readonly CreditTransaction[]): number {
  * Minutes of focused study still needed to earn `missingCents` at the
  * given rate. Rounded up – you can't earn a fraction of a minute.
  */
-export function minutesToEarn(missingCents: number, rates: RateSnapshot): number {
+export function minutesToEarn(missingCents: number, rates: RateSnapshot, wallet: Wallet = 'main'): number {
   if (missingCents <= 0) return 0;
-  if (rates.creditCentsPerHour <= 0) return Infinity;
-  let minutes = Math.ceil((missingCents * 60) / rates.creditCentsPerHour);
+  const rate = wallet === 'main' ? rates.creditCentsPerHour : rates.creativeCentsPerHour;
+  if (rate <= 0) return Infinity;
+  const earn = (m: number) => (wallet === 'main' ? creditsForMinutes(m, rates) : creativeCreditsForMinutes(m, rates));
+  let minutes = Math.ceil((missingCents * 60) / rate);
   // Guard against rounding: make sure those minutes really earn enough.
-  while (creditsForMinutes(minutes, rates) < missingCents) minutes++;
+  while (earn(minutes) < missingCents) minutes++;
   return minutes;
 }
 

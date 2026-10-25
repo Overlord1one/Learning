@@ -3,13 +3,15 @@ import {
   balanceCents,
   levelForXp,
   minutesToEarn,
+  sessionCreativeCredits,
   sessionCredits,
+  sessionWalletCredits,
   sessionXp,
   totalXp,
 } from './economy';
 import { addDays, dayKey, daysBetween, parseDayKey, shiftDayKey, startOfMonth, startOfWeek } from './dates';
 import { activePurchaseFor } from './commands';
-import type { AppData, DayKey, Reward, RewardPurchase, StudyCategory, StudySession } from './types';
+import type { AppData, DayKey, Reward, RewardPurchase, StudyCategory, StudySession, Wallet } from './types';
 
 // ---------------------------------------------------------------------------
 // Study time
@@ -140,13 +142,15 @@ export function weeklyPlan(data: AppData, date: Date): WeeklyPlan {
 
 export interface PlayerSnapshot {
   balanceCents: number;
+  /** Kreativ-Konto balance. */
+  creativeCents: number;
   xp: number;
   level: number;
 }
 
 export function playerSnapshot(data: AppData): PlayerSnapshot {
   const xp = totalXp(data.sessions);
-  return { balanceCents: balanceCents(data.transactions), xp, level: levelForXp(xp) };
+  return { balanceCents: balanceCents(data.transactions), creativeCents: balanceCents(data.transactions, 'creative'), xp, level: levelForXp(xp) };
 }
 
 // ---------------------------------------------------------------------------
@@ -175,10 +179,10 @@ export interface RewardProgress {
   minutesFromZero: number;
 }
 
-export function rewardProgress(data: AppData, reward: Reward, balance = balanceCents(data.transactions)): RewardProgress {
+export function rewardProgress(data: AppData, reward: Reward, balance = balanceCents(data.transactions, reward.wallet)): RewardProgress {
   const rates = data.settings.rates;
   const purchase = activePurchaseFor(data, reward.id);
-  const minutesFromZero = minutesToEarn(reward.priceCents, rates);
+  const minutesFromZero = minutesToEarn(reward.priceCents, rates, reward.wallet);
   if (reward.preOwned) {
     return { reward, status: 'vorhanden', purchase: null, ratio: 1, missingCents: 0, minutesNeeded: 0, minutesFromZero };
   }
@@ -192,13 +196,13 @@ export function rewardProgress(data: AppData, reward: Reward, balance = balanceC
     purchase: null,
     ratio: reward.priceCents > 0 ? Math.min(1, Math.max(0, balance) / reward.priceCents) : 1,
     missingCents,
-    minutesNeeded: minutesToEarn(missingCents, rates),
+    minutesNeeded: minutesToEarn(missingCents, rates, reward.wallet),
     minutesFromZero,
   };
 }
 
-export function shopRewards(data: AppData): Reward[] {
-  return data.rewards.filter((r) => !r.archived && !r.preOwned).sort((a, b) => a.sortOrder - b.sortOrder);
+export function shopRewards(data: AppData, wallet: Wallet = 'main'): Reward[] {
+  return data.rewards.filter((r) => !r.archived && !r.preOwned && r.wallet === wallet).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export interface InventoryItem {
@@ -220,15 +224,15 @@ export function inventory(data: AppData): InventoryItem[] {
 }
 
 /** Rewards that became affordable between two balances (and are not yet unlocked). */
-export function newlyAffordable(data: AppData, before: number, after: number): Reward[] {
-  return shopRewards(data).filter(
+export function newlyAffordable(data: AppData, before: number, after: number, wallet: Wallet = 'main'): Reward[] {
+  return shopRewards(data, wallet).filter(
     (r) => !activePurchaseFor(data, r.id) && r.priceCents > before && r.priceCents <= after,
   );
 }
 
 export function goalReward(data: AppData): Reward | null {
   const id = data.settings.goalRewardId;
-  const goal = id ? data.rewards.find((r) => r.id === id && !r.archived && !r.preOwned) : undefined;
+  const goal = id ? data.rewards.find((r) => r.id === id && !r.archived && !r.preOwned && r.wallet === 'main') : undefined;
   if (goal && !activePurchaseFor(data, goal.id)) return goal;
   // Fall back to the cheapest reward that is still locked.
   const open = shopRewards(data).filter((r) => !activePurchaseFor(data, r.id));
@@ -252,7 +256,7 @@ export type Projection =
  * day recently (so subject weighting is reflected). Requires a minimum amount
  * of history – otherwise no date is invented.
  */
-export function projectCompletion(sessions: readonly StudySession[], missingCents: number, now: Date): Projection {
+export function projectCompletion(sessions: readonly StudySession[], missingCents: number, now: Date, wallet: Wallet = 'main'): Projection {
   if (missingCents <= 0) return { kind: 'reached' };
   const today = dayKey(now);
   const from = shiftDayKey(today, -(PROJECTION_WINDOW_DAYS - 1));
@@ -260,7 +264,7 @@ export function projectCompletion(sessions: readonly StudySession[], missingCent
   const activeDays = new Set(recent.map((s) => s.date)).size;
   if (activeDays < PROJECTION_MIN_ACTIVE_DAYS) return { kind: 'insufficient', activeDays };
   const averageDailyMinutes = recent.reduce((a, s) => a + s.minutes, 0) / PROJECTION_WINDOW_DAYS;
-  const averageDailyCents = recent.reduce((a, s) => a + sessionCredits(s), 0) / PROJECTION_WINDOW_DAYS;
+  const averageDailyCents = recent.reduce((a, s) => a + sessionWalletCredits(s, wallet), 0) / PROJECTION_WINDOW_DAYS;
   if (averageDailyCents <= 0) return { kind: 'insufficient', activeDays };
   const days = Math.ceil(missingCents / averageDailyCents);
   return { kind: 'estimate', averageDailyMinutes, days, date: addDays(parseDayKey(today), days) };
@@ -271,9 +275,9 @@ export function projectCompletion(sessions: readonly StudySession[], missingCent
 // ---------------------------------------------------------------------------
 
 export type ActivityItem =
-  | { kind: 'session'; id: string; at: string; session: StudySession; credits: number; xp: number }
-  | { kind: 'purchase'; id: string; at: string; name: string; priceCents: number }
-  | { kind: 'refund'; id: string; at: string; name: string; priceCents: number }
+  | { kind: 'session'; id: string; at: string; session: StudySession; credits: number; creativeCredits: number; xp: number }
+  | { kind: 'purchase'; id: string; at: string; name: string; priceCents: number; wallet: Wallet }
+  | { kind: 'refund'; id: string; at: string; name: string; priceCents: number; wallet: Wallet }
   | { kind: 'levelup'; id: string; at: string; level: number };
 
 export function activityFeed(data: AppData, limit = 8): ActivityItem[] {
@@ -285,12 +289,12 @@ export function activityFeed(data: AppData, limit = 8): ActivityItem[] {
     const before = levelForXp(xp);
     xp += sessionXp(s);
     const after = levelForXp(xp);
-    items.push({ kind: 'session', id: s.id, at: s.createdAt, session: s, credits: sessionCredits(s), xp: sessionXp(s) });
+    items.push({ kind: 'session', id: s.id, at: s.createdAt, session: s, credits: sessionCredits(s), creativeCredits: sessionCreativeCredits(s), xp: sessionXp(s) });
     for (let l = before + 1; l <= after; l++) items.push({ kind: 'levelup', id: `lvl-${s.id}-${l}`, at: s.createdAt, level: l });
   }
   for (const p of data.purchases) {
-    items.push({ kind: 'purchase', id: p.id, at: p.unlockedAt, name: p.rewardName, priceCents: p.priceCents });
-    if (p.refundedAt) items.push({ kind: 'refund', id: `ref-${p.id}`, at: p.refundedAt, name: p.rewardName, priceCents: p.priceCents });
+    items.push({ kind: 'purchase', id: p.id, at: p.unlockedAt, name: p.rewardName, priceCents: p.priceCents, wallet: p.wallet });
+    if (p.refundedAt) items.push({ kind: 'refund', id: `ref-${p.id}`, at: p.refundedAt, name: p.rewardName, priceCents: p.priceCents, wallet: p.wallet });
   }
   // Newest first; a level-up is shown above the session that caused it.
   const rank = (i: ActivityItem) => (i.kind === 'levelup' ? 1 : 0);
@@ -415,6 +419,7 @@ export function creditFlowSeries(data: AppData, from: DayKey, to: DayKey, bucket
     }
   }
   for (const t of data.transactions) {
+    if (t.wallet !== 'main') continue;
     const d = dayKey(new Date(t.createdAt));
     if (d < from || d > to) continue;
     const point = buckets.get(keyFor(d));

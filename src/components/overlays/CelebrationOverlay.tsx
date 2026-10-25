@@ -7,7 +7,7 @@ import { useAppStore } from '../../store/appStore';
 import type { SessionCelebration, UnlockCelebration } from '../../store/appStore';
 import { levelProgress } from '../../domain/economy';
 import { rankForLevel } from '../../domain/ranks';
-import { formatCredits, formatInt, formatSC } from '../../domain/format';
+import { formatAmount, formatCredits, formatInt, formatSC } from '../../domain/format';
 import { useReducedMotion } from '../../store/hooks';
 import { AnimatedNumber, ProgressBar } from '../ui/progress';
 import { Button } from '../ui/primitives';
@@ -97,7 +97,7 @@ function SessionSummary({ c, onClose }: { c: SessionCelebration; onClose: () => 
             </h2>
             <p className="mt-1 text-center text-sm text-muted">{c.session.goal || 'Starke Arbeit. Jede Minute zählt.'}</p>
 
-            <div className="mt-7 grid grid-cols-2 gap-3">
+            <div className={c.creativeCredits > 0 ? 'mt-7 grid grid-cols-3 gap-2.5' : 'mt-7 grid grid-cols-2 gap-3'}>
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="rounded-2xl border border-gold/15 bg-gold-soft p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5">
                   <CreditCoin />
@@ -105,6 +105,12 @@ function SessionSummary({ c, onClose }: { c: SessionCelebration; onClose: () => 
                 </div>
                 <p className="mt-1 text-xs text-gold/70">Setup Credits</p>
               </motion.div>
+              {c.creativeCredits > 0 && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="rounded-2xl border border-creative/20 bg-creative-soft p-4 text-center">
+                  <AnimatedNumber value={c.creativeCredits} from={0} delay={0.5} format={(v) => `+${formatCredits(Math.round(v))}`} className="text-2xl font-semibold text-creative" />
+                  <p className="mt-1 text-xs text-creative/70">Kreativ-Credits</p>
+                </motion.div>
+              )}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="rounded-2xl border border-accent/15 bg-accent-soft p-4 text-center">
                 <AnimatedNumber value={c.xp} from={0} delay={0.4} format={(v) => `+${formatInt(v)}`} className="text-2xl font-semibold text-accent" />
                 <p className="mt-1 text-xs text-accent/70">XP</p>
@@ -259,10 +265,10 @@ function UnlockSummary({ c, onClose }: { c: UnlockCelebration; onClose: () => vo
       </motion.h2>
       <p className="relative mt-1 text-sm text-muted">{c.reward.variant || c.reward.category}</p>
       <div className="relative mt-5 flex items-center justify-center gap-4 text-sm">
-        <span className="tabular font-medium text-gold">−{formatSC(c.priceCents)}</span>
+        <span className="tabular font-medium text-gold">−{formatAmount(c.priceCents, c.reward.wallet)}</span>
         <span className="h-3.5 w-px bg-line" />
         <span className="text-muted">
-          Neues Guthaben <span className="tabular font-medium text-fg">{formatSC(c.balanceAfter)}</span>
+          Neues Guthaben <span className="tabular font-medium text-fg">{formatAmount(c.balanceAfter, c.reward.wallet)}</span>
         </span>
       </div>
       <p className="relative mx-auto mt-5 max-w-xs text-[13px] leading-relaxed text-faint">

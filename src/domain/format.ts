@@ -8,6 +8,9 @@ const euroFmt = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'E
 /** 1500 → "15", 750 → "7,5", 123456 → "1.234,56" */
 export const formatCredits = (cents: number) => creditFmt.format(cents / CENTS_PER_CREDIT);
 export const formatSC = (cents: number) => `${formatCredits(cents)} SC`;
+/** Kreativ-Credits: 1200 → "12 KC" */
+export const formatKC = (cents: number) => `${formatCredits(cents)} KC`;
+export const formatAmount = (cents: number, wallet: 'main' | 'creative') => (wallet === 'main' ? formatSC(cents) : formatKC(cents));
 export const formatInt = (n: number) => intFmt.format(n);
 export const formatDecimal = (n: number) => oneDecimalFmt.format(n);
 export const formatEuro = (cents: number) => euroFmt.format(cents / 100);

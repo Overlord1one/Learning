@@ -4,12 +4,12 @@ import { Crosshair, ExternalLink, Pencil, Sparkles, Trash2, Undo2 } from 'lucide
 import { Dialog, ConfirmDialog } from '../ui/dialog';
 import { Badge, Button, Toggle } from '../ui/primitives';
 import { ProgressBar } from '../ui/progress';
-import { CreditCoin, ProductVisual } from '../ui/visuals';
+import { ProductVisual, WalletCoin } from '../ui/visuals';
 import { StatusBadge } from './RewardCard';
 import { useAppStore } from '../../store/appStore';
 import { useData } from '../../store/hooks';
 import { projectCompletion, rewardProgress } from '../../domain/stats';
-import { formatDate, formatEuro, formatHoursPrecise, formatSC } from '../../domain/format';
+import { formatAmount, formatDate, formatEuro, formatHoursPrecise } from '../../domain/format';
 import type { Reward } from '../../domain/types';
 
 interface Props {
@@ -31,7 +31,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
 
   const live = reward ? (data.rewards.find((r) => r.id === reward.id) ?? reward) : null;
   const item = live ? rewardProgress(data, live) : null;
-  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.missingCents, new Date()) : null), [data.sessions, item]);
+  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.missingCents, new Date(), item.reward.wallet) : null), [data.sessions, item]);
   const history = live ? data.purchases.filter((p) => p.rewardId === live.id).sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt)) : [];
 
   return (
@@ -48,8 +48,8 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
             {live.description && <p className="text-sm leading-relaxed text-muted">{live.description}</p>}
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Info label="Preis" value={<span className="flex items-center gap-1.5"><CreditCoin className="size-3.5" />{formatSC(live.priceCents)}</span>} />
-              <Info label="Lernzeit ab null" value={formatHoursPrecise(item.minutesFromZero)} />
+              <Info label="Preis" value={<span className="flex items-center gap-1.5"><WalletCoin wallet={live.wallet} className="size-3.5" />{formatAmount(live.priceCents, live.wallet)}</span>} />
+              <Info label={live.wallet === 'creative' ? 'Schnittzeit ab null' : 'Lernzeit ab null'} value={formatHoursPrecise(item.minutesFromZero)} />
               <Info label="Priorität" value={live.priority[0]!.toUpperCase() + live.priority.slice(1)} />
               <Info label="Realer Preis" value={live.realPriceEuroCents != null ? formatEuro(live.realPriceEuroCents) : '—'} />
             </div>
@@ -60,14 +60,14 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
                   <span className="text-muted">Fortschritt</span>
                   <span className="tabular font-medium text-fg">{Math.floor(item.ratio * 100)} %</span>
                 </div>
-                <ProgressBar value={item.ratio} tone="gold" label="Fortschritt" />
+                <ProgressBar value={item.ratio} tone={live.wallet === 'creative' ? 'creative' : 'gold'} label="Fortschritt" />
                 <p className="mt-3 text-sm text-muted">
                   {item.status === 'freischaltbar' ? (
                     'Du hast genug Credits, um diese Belohnung freizuschalten.'
                   ) : (
                     <>
-                      Es fehlen <span className="tabular font-medium text-fg">{formatSC(item.missingCents)}</span> – das sind{' '}
-                      <span className="tabular font-medium text-fg">{formatHoursPrecise(item.minutesNeeded)}</span> fokussiertes Lernen.{' '}
+                      Es fehlen <span className="tabular font-medium text-fg">{formatAmount(item.missingCents, live.wallet)}</span> – das sind{' '}
+                      <span className="tabular font-medium text-fg">{formatHoursPrecise(item.minutesNeeded)}</span> {live.wallet === 'creative' ? 'Video-Schnitt' : 'fokussiertes Lernen'}.{' '}
                       {projection?.kind === 'estimate'
                         ? `Bei deinem aktuellen Tempo (Ø ${Math.round(projection.averageDailyMinutes)} Min./Tag) etwa am ${formatDate(projection.date)}.`
                         : 'Für eine Prognose brauchst du Lernaktivität an mindestens 3 der letzten 14 Tage.'}
@@ -80,7 +80,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
             {item.purchase && (
               <div className="rounded-2xl border border-success/20 bg-success-soft p-4">
                 <p className="text-sm font-medium text-success">Virtuell freigeschaltet am {formatDate(new Date(item.purchase.unlockedAt))}</p>
-                <p className="mt-0.5 text-xs text-muted">Für {formatSC(item.purchase.priceCents)} – das bedeutet: Du darfst dir dieses Produkt gönnen. Es wurde nichts bestellt.</p>
+                <p className="mt-0.5 text-xs text-muted">Für {formatAmount(item.purchase.priceCents, item.purchase.wallet)} – das bedeutet: Du darfst dir dieses Produkt gönnen. Es wurde nichts bestellt.</p>
                 <div className="mt-4 border-t border-success/15 pt-4">
                   <Toggle
                     id="real-bought"
@@ -99,7 +99,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
                 <ul className="space-y-1 text-xs text-muted">
                   {history.map((p) => (
                     <li key={p.id} className="tabular">
-                      {formatDate(new Date(p.unlockedAt))}: freigeschaltet für {formatSC(p.priceCents)}
+                      {formatDate(new Date(p.unlockedAt))}: freigeschaltet für {formatAmount(p.priceCents, live.wallet)}
                       {p.refundedAt && ` · rückgängig am ${formatDate(new Date(p.refundedAt))}`}
                     </li>
                   ))}
@@ -114,6 +114,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
                 </Button>
               )}
               {(item.status === 'gesperrt' || item.status === 'freischaltbar') &&
+                live.wallet === 'main' &&
                 (data.settings.goalRewardId === live.id ? (
                   <Badge tone="accent" icon={Crosshair} className="h-10 rounded-xl px-3 text-sm">
                     Aktuelles Ziel
@@ -153,7 +154,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
         onClose={() => setConfirmRefund(false)}
         title="Freischaltung rückgängig machen?"
         confirmLabel="Rückgängig machen"
-        description={item?.purchase && <>Du erhältst {formatSC(item.purchase.priceCents)} zurück. Die Freischaltung und die Erstattung bleiben im Verlauf nachvollziehbar.</>}
+        description={item?.purchase && <>Du erhältst {formatAmount(item.purchase.priceCents, item.purchase.wallet)} zurück. Die Freischaltung und die Erstattung bleiben im Verlauf nachvollziehbar.</>}
         onConfirm={() => {
           if (!item?.purchase) return;
           const r = refund(item.purchase.id);

@@ -2,10 +2,10 @@ import { motion } from 'motion/react';
 import { Check, Crosshair, Lock, Sparkles } from 'lucide-react';
 import type { RewardProgress } from '../../domain/stats';
 import { REWARD_STATUS_LABEL } from '../../domain/stats';
-import { formatHoursPrecise, formatSC } from '../../domain/format';
+import { formatAmount, formatHoursPrecise } from '../../domain/format';
 import { Badge, Button } from '../ui/primitives';
 import { ProgressBar } from '../ui/progress';
-import { CreditCoin, ProductVisual } from '../ui/visuals';
+import { ProductVisual, WalletCoin } from '../ui/visuals';
 import { cn } from '../../lib/cn';
 
 interface Props {
@@ -51,17 +51,17 @@ export function RewardCard({ item, isGoal, index, onOpen, onUnlock }: Props) {
         {reward.variant && <p className="mt-0.5 text-[13px] text-muted">{reward.variant}</p>}
 
         <div className="mt-4 flex items-center gap-1.5">
-          <CreditCoin />
-          <span className="tabular text-lg font-semibold text-fg">{formatSC(reward.priceCents)}</span>
-          <span className="ml-auto text-xs text-faint">≈ {formatHoursPrecise(item.minutesFromZero)} Lernzeit</span>
+          <WalletCoin wallet={reward.wallet} />
+          <span className="tabular text-lg font-semibold text-fg">{formatAmount(reward.priceCents, reward.wallet)}</span>
+          <span className="ml-auto text-xs text-faint">≈ {formatHoursPrecise(item.minutesFromZero)} {reward.wallet === 'creative' ? 'Schnitt' : 'Lernzeit'}</span>
         </div>
 
         {status === 'gesperrt' || status === 'freischaltbar' ? (
           <div className="mt-3">
-            <ProgressBar value={item.ratio} tone="gold" size="sm" label={`Fortschritt zu ${reward.name}`} />
+            <ProgressBar value={item.ratio} tone={reward.wallet === 'creative' ? 'creative' : 'gold'} size="sm" label={`Fortschritt zu ${reward.name}`} />
             <div className="tabular mt-2 flex justify-between text-xs">
               <span className="text-muted">{Math.floor(item.ratio * 100)} %</span>
-              <span className="text-faint">{status === 'gesperrt' ? `noch ${formatSC(item.missingCents)} · ${formatHoursPrecise(item.minutesNeeded)}` : 'Genug Credits'}</span>
+              <span className="text-faint">{status === 'gesperrt' ? `noch ${formatAmount(item.missingCents, reward.wallet)} · ${formatHoursPrecise(item.minutesNeeded)}` : 'Genug Credits'}</span>
             </div>
           </div>
         ) : (
@@ -77,7 +77,7 @@ export function RewardCard({ item, isGoal, index, onOpen, onUnlock }: Props) {
               Freischalten
             </Button>
           ) : status === 'gesperrt' ? (
-            <Button variant="secondary" className="flex-1" icon={Lock} disabled aria-label={`${reward.name} ist gesperrt – es fehlen ${formatSC(item.missingCents)}`}>
+            <Button variant="secondary" className="flex-1" icon={Lock} disabled aria-label={`${reward.name} ist gesperrt – es fehlen ${formatAmount(item.missingCents, reward.wallet)}`}>
               Gesperrt
             </Button>
           ) : null}

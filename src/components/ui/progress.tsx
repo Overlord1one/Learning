@@ -4,12 +4,13 @@ import { animate, motion } from 'motion/react';
 import { useReducedMotion } from '../../store/hooks';
 import { cn } from '../../lib/cn';
 
-type Tone = 'accent' | 'gold' | 'success';
+type Tone = 'accent' | 'gold' | 'success' | 'creative';
 
 const fills: Record<Tone, string> = {
   accent: 'bg-accent',
   gold: 'bg-gold',
   success: 'bg-success',
+  creative: 'bg-creative',
 };
 
 /** Smoothly filling progress bar. `value` 0 … 1. */
@@ -104,7 +105,8 @@ export function Ring({ value, size = 64, stroke = 6, tone = 'accent', children }
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const clamped = Math.min(1, Math.max(0, value));
-  const color = tone === 'gold' ? 'var(--color-gold)' : tone === 'success' ? 'var(--color-success)' : 'var(--accent)';
+  const color =
+    tone === 'gold' ? 'var(--color-gold)' : tone === 'success' ? 'var(--color-success)' : tone === 'creative' ? 'var(--color-creative)' : 'var(--accent)';
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden>

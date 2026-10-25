@@ -16,6 +16,9 @@
   --color-success-soft: rgb(103 201 160 / 0.12);
   --color-gold: #d9b46a;
   --color-gold-soft: rgb(217 180 106 / 0.12);
+  /* Kreativ-Credits */
+  --color-creative: #c99bf0;
+  --color-creative-soft: rgb(201 155 240 / 0.12);
   --color-danger: #e5737a;
   --color-danger-soft: rgb(229 115 122 / 0.12);
 

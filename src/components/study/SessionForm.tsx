@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Plus } from 'lucide-react';
 import { useActiveCategories, useData } from '../../store/hooks';
-import { creditsForMinutes, xpForMinutes, MAX_SESSION_MINUTES } from '../../domain/economy';
+import { creativeCreditsForMinutes, creditsForMinutes, xpForMinutes, MAX_SESSION_MINUTES } from '../../domain/economy';
 import { dayKey } from '../../domain/dates';
-import { formatInt, formatSC, formatWeight } from '../../domain/format';
+import { formatInt, formatKC, formatSC, formatWeight } from '../../domain/format';
 import type { StudySession } from '../../domain/types';
 import { Button, Field, Input, Segmented, Select, Textarea } from '../ui/primitives';
 import { CategoryDialog } from './CategoryDialog';
@@ -63,9 +63,18 @@ export function SessionForm({ initial, submitLabel, onSubmit, onCancel }: Props)
   // The subject weighting stays locked unless the session moves to another subject.
   const weight =
     initial && initial.categoryId === categoryId ? initial.weightPercent : (data.categories.find((c) => c.id === categoryId)?.weightPercent ?? 100);
+  const creative =
+    initial && initial.categoryId === categoryId ? initial.creative : (data.categories.find((c) => c.id === categoryId)?.creative ?? false);
   const preview = useMemo(
-    () => (durationError ? null : { credits: creditsForMinutes(total, rates, weight), xp: xpForMinutes(total, rates, weight) }),
-    [durationError, total, rates, weight],
+    () =>
+      durationError
+        ? null
+        : {
+            credits: creditsForMinutes(total, rates, weight),
+            xp: xpForMinutes(total, rates, weight),
+            creative: creative ? creativeCreditsForMinutes(total, rates) : 0,
+          },
+    [durationError, total, rates, weight, creative],
   );
 
   // Archived categories stay selectable when editing an old session that uses one.
@@ -155,8 +164,13 @@ export function SessionForm({ initial, submitLabel, onSubmit, onCancel }: Props)
         <p className="text-sm text-muted">
           {preview ? (
             <>
-              {initial ? 'Neuer Wert' : 'Du erhältst'} <span className="tabular font-semibold text-gold">{formatSC(preview.credits)}</span> und{' '}
-              <span className="tabular font-semibold text-accent">{formatInt(preview.xp)} XP</span>
+              {initial ? 'Neuer Wert' : 'Du erhältst'} <span className="tabular font-semibold text-gold">{formatSC(preview.credits)}</span>
+              {preview.creative > 0 && (
+                <>
+                  , <span className="tabular font-semibold text-creative">{formatKC(preview.creative)}</span>
+                </>
+              )}{' '}
+              und <span className="tabular font-semibold text-accent">{formatInt(preview.xp)} XP</span>
             </>
           ) : (
             <span className="text-danger">{durationError}</span>

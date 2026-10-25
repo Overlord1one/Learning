@@ -8,7 +8,7 @@ import { useAppStore } from '../../store/appStore';
 import { useNow, usePlayer, useReducedMotion } from '../../store/hooks';
 import { formatClock, formatCredits } from '../../domain/format';
 import { timerElapsedMs } from '../../domain/timer';
-import { CreditCoin } from '../ui/visuals';
+import { CreativeCoin, CreditCoin } from '../ui/visuals';
 import { Kbd } from '../ui/primitives';
 import { ProgressBar } from '../ui/progress';
 import { cn } from '../../lib/cn';
@@ -135,8 +135,14 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             <CreditChip />
           </div>
           <ProgressBar value={player.progress.ratio} size="sm" label="Level-Fortschritt" className="mt-3" />
-          <p className="tabular mt-1.5 text-[11px] text-faint">
-            {player.progress.xpIntoLevel} / {player.progress.xpForLevel} XP
+          <p className="tabular mt-1.5 flex justify-between text-[11px] text-faint">
+            <span>
+              {player.progress.xpIntoLevel} / {player.progress.xpForLevel} XP
+            </span>
+            <span className="flex items-center gap-1 text-creative" title="Kreativ-Konto">
+              <CreativeCoin className="size-3" />
+              {formatCredits(player.creativeCents)} KC
+            </span>
           </p>
         </div>
       </div>

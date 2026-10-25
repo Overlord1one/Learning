@@ -1,11 +1,12 @@
 /** Runtime validation for persisted and imported data. */
 import { z } from 'zod';
-import { balanceCents, creditsForMinutes, DEFAULT_RATES } from './economy';
+import { balanceCents, creditsForMinutes, DEFAULT_RATES, sessionCreativeCredits, sessionCredits } from './economy';
 import { creditedForSession } from './commands';
 import { isValidDayKey } from './dates';
 import { SCHEMA_VERSION } from './types';
 import type { AppData, CreditTransaction, Result, StudyCategory, StudySession } from './types';
 import {
+  CREATIVE_REWARDS,
   DEFAULT_CATEGORIES,
   DEFAULT_REWARDS,
   V1_DEFAULT_PRICES,
@@ -22,7 +23,8 @@ const dayKeySchema = z.string().refine(isValidDayKey, 'Ungültiges Datum');
 const int = z.number().int();
 const weight = z.number().min(10).max(300).refine((v) => Number.isInteger(v * 4), 'Ungültige Gewichtung');
 
-const rates = z.object({ creditCentsPerHour: int.min(1), xpPerHour: int.min(1) });
+const rates = z.object({ creditCentsPerHour: int.min(1), xpPerHour: int.min(1), creativeCentsPerHour: int.min(0) });
+const wallet = z.enum(['main', 'creative']);
 
 const schema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
@@ -42,7 +44,7 @@ const schema = z.object({
   }),
   categories: z
     .array(
-      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: weight, weeklyTargetMinutes: int.min(0).max(10080) }),
+      z.object({ id: z.string(), name: z.string().min(1), color: z.string(), isDefault: z.boolean(), archived: z.boolean(), weightPercent: weight, weeklyTargetMinutes: int.min(0).max(10080), creative: z.boolean() }),
     )
     .min(1),
   sessions: z.array(
@@ -59,6 +61,7 @@ const schema = z.object({
       taskCompleted: z.boolean().nullable(),
       rates,
       weightPercent: weight,
+      creative: z.boolean(),
       createdAt: iso,
       updatedAt: iso,
     }),
@@ -66,6 +69,7 @@ const schema = z.object({
   transactions: z.array(
     z.object({
       id: z.string(),
+      wallet,
       type: z.enum(['session_earn', 'session_adjust', 'session_revoke', 'purchase', 'refund']),
       amountCents: int,
       createdAt: iso,
@@ -88,6 +92,7 @@ const schema = z.object({
       realPriceEuroCents: int.min(0).nullable(),
       productUrl: z.string(),
       priority: z.enum(['niedrig', 'mittel', 'hoch']),
+      wallet,
       isDefault: z.boolean(),
       preOwned: z.boolean(),
       archived: z.boolean(),
@@ -100,6 +105,7 @@ const schema = z.object({
       id: z.string(),
       rewardId: z.string(),
       rewardName: z.string(),
+      wallet,
       priceCents: int.min(0),
       unlockedAt: iso,
       realPurchasedAt: iso.nullable(),
@@ -145,9 +151,12 @@ export function validateAppData(input: unknown): Result<AppData> {
 
   // Every existing session must be credited exactly with its value.
   for (const s of data.sessions) {
-    const earns = data.transactions.filter((t) => t.type === 'session_earn' && t.sessionId === s.id).length;
+    const earns = data.transactions.filter((t) => t.type === 'session_earn' && t.sessionId === s.id && t.wallet === 'main').length;
     if (earns !== 1) return fail('Ungültige Datei: Eine Session wurde nicht genau einmal gutgeschrieben.');
-    if (creditedForSession(data, s.id) !== creditsForMinutes(s.minutes, s.rates, s.weightPercent)) {
+    if (
+      creditedForSession(data, s.id, 'main') !== sessionCredits(s) ||
+      creditedForSession(data, s.id, 'creative') !== sessionCreativeCredits(s)
+    ) {
       return fail('Ungültige Datei: Gutschriften passen nicht zu den Sessions.');
     }
   }
@@ -160,14 +169,17 @@ export function validateAppData(input: unknown): Result<AppData> {
     if (p.refundedAt === null) activePerReward.set(p.rewardId, (activePerReward.get(p.rewardId) ?? 0) + 1);
   }
   if ([...activePerReward.values()].some((n) => n > 1)) return fail('Ungültige Datei: doppelte Freischaltung gefunden.');
-  if (balanceCents(data.transactions) < 0) return fail('Ungültige Datei: Das Guthaben wäre negativ.');
+  if (balanceCents(data.transactions, 'main') < 0 || balanceCents(data.transactions, 'creative') < 0) {
+    return fail('Ungültige Datei: Ein Guthaben wäre negativ.');
+  }
 
   return ok(data);
 }
 
 /** Bring older persisted data up to the current schema. */
 export function migrate(raw: unknown): unknown {
-  let data = raw;
+  // Before v8 there was only one account: every booking belongs to it.
+  let data = isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion < 8 ? withMainWallet(raw) : raw;
   if (isRecord(data) && data.schemaVersion === 1) data = migrateV1toV2(data);
   if (isRecord(data) && data.schemaVersion === 2) data = migrateV2toV3(data);
   if (isRecord(data) && data.schemaVersion === 3) data = migrateV3toV4(data);
@@ -175,6 +187,7 @@ export function migrate(raw: unknown): unknown {
   if (isRecord(data) && data.schemaVersion === 4) data = changeDefaultWeight(data, 'cat-vorlesungen', 75, 37.5, 5);
   if (isRecord(data) && data.schemaVersion === 5) data = changeDefaultWeight(data, 'cat-vorlesungen', 37.5, 18.75, 6);
   if (isRecord(data) && data.schemaVersion === 6) data = migrateV6toV7(data);
+  if (isRecord(data) && data.schemaVersion === 7) data = migrateV7toV8(data);
   return data;
 }
 
@@ -224,11 +237,12 @@ function rebookSessions(
   const weighted = sessions.map(change);
   const corrections: CreditTransaction[] = [];
   for (const s of weighted) {
-    const credited = transactions.filter((t) => t.sessionId === s.id).reduce((a, t) => a + t.amountCents, 0);
+    const credited = transactions.filter((t) => t.sessionId === s.id && t.wallet === 'main').reduce((a, t) => a + t.amountCents, 0);
     const delta = creditsForMinutes(s.minutes, s.rates, s.weightPercent) - credited;
     if (delta !== 0) {
       corrections.push({
         id: createId('tx'),
+        wallet: 'main',
         type: 'session_adjust',
         amountCents: delta,
         createdAt: now,
@@ -274,6 +288,62 @@ function migrateV3toV4(raw: Record<string, unknown>): unknown {
   }
   if (isRecord(data.settings) && data.settings.dailyGoalMinutes === 240) data.settings.dailyGoalMinutes = 120;
   data.schemaVersion = 4;
+  return data;
+}
+
+function withMainWallet(raw: Record<string, unknown>): Record<string, unknown> {
+  const data = structuredClone(raw) as Record<string, any>;
+  if (Array.isArray(data.transactions)) data.transactions = data.transactions.map((t: object) => ({ wallet: 'main', ...t }));
+  if (Array.isArray(data.purchases)) data.purchases = data.purchases.map((p: object) => ({ wallet: 'main', ...p }));
+  return data;
+}
+
+/**
+ * v8: Kreativ-Konto. Video editing additionally earns Kreativ-Credits (KC) for
+ * creative equipment. Adds the 7Hz x Crinacle Divine and an editing monitor,
+ * and credits KC retroactively for video editing already logged.
+ */
+function migrateV7toV8(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  const creativeRate = DEFAULT_RATES.creativeCentsPerHour;
+  if (isRecord(data.settings) && isRecord(data.settings.rates)) {
+    data.settings.rates = { ...data.settings.rates, creativeCentsPerHour: creativeRate };
+  }
+  const categories: StudyCategory[] = Array.isArray(data.categories) ? data.categories : [];
+  data.categories = categories.map((c) => ({ ...c, creative: c.id === 'cat-video' }));
+  if (Array.isArray(data.rewards)) {
+    data.rewards = data.rewards.map((r: object) => ({ wallet: 'main', ...r }));
+    const now = new Date().toISOString();
+    for (const seed of [...DEFAULT_REWARDS, ...CREATIVE_REWARDS]) {
+      if (!data.rewards.some((r: { id: string }) => r.id === seed.id)) data.rewards.push({ ...seed, createdAt: now });
+    }
+  }
+  const now = new Date().toISOString();
+  const sessions: StudySession[] = Array.isArray(data.sessions) ? data.sessions : [];
+  data.sessions = sessions.map((s) => ({
+    ...s,
+    rates: { ...s.rates, creativeCentsPerHour: creativeRate },
+    creative: s.categoryId === 'cat-video',
+  }));
+  const transactions: CreditTransaction[] = Array.isArray(data.transactions) ? data.transactions : [];
+  for (const s of data.sessions as StudySession[]) {
+    const amount = sessionCreativeCredits(s);
+    if (amount > 0) {
+      transactions.push({
+        id: createId('tx'),
+        wallet: 'creative',
+        type: 'session_earn',
+        amountCents: amount,
+        createdAt: now,
+        sessionId: s.id,
+        purchaseId: null,
+        rewardId: null,
+        note: `${s.minutes} Min. Video-Schnitt (Kreativ-Konto, rückwirkend)`,
+      });
+    }
+  }
+  data.transactions = transactions;
+  data.schemaVersion = 8;
   return data;
 }
 

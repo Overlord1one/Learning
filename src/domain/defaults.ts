@@ -11,14 +11,14 @@ import type { AppData, Reward, Settings, StudyCategory } from './types';
  * bonus – the account is filled by actual studying.
  */
 export const DEFAULT_CATEGORIES: StudyCategory[] = [
-  { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false, weightPercent: 150, weeklyTargetMinutes: 0 },
-  { id: 'cat-cs50x', name: 'Harvard CS50x', color: '#3987e5', isDefault: true, archived: false, weightPercent: 120, weeklyTargetMinutes: 0 },
-  { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false, weightPercent: 120, weeklyTargetMinutes: 0 },
-  { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 0 },
-  { id: 'cat-digitalrechner', name: 'Digitalrechner', color: '#008300', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 0 },
-  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 18.75, weeklyTargetMinutes: 0 },
-  { id: 'cat-video', name: 'Video-Schnitt (Social Media)', color: '#e66767', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0 },
-  { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0 },
+  { id: 'cat-mathe', name: 'Mathematik', color: '#199e70', isDefault: true, archived: false, weightPercent: 150, weeklyTargetMinutes: 0, creative: false },
+  { id: 'cat-cs50x', name: 'Harvard CS50x', color: '#3987e5', isDefault: true, archived: false, weightPercent: 120, weeklyTargetMinutes: 0, creative: false },
+  { id: 'cat-cs50p', name: 'Harvard CS50P / Python', color: '#d95926', isDefault: true, archived: false, weightPercent: 120, weeklyTargetMinutes: 0, creative: false },
+  { id: 'cat-etechnik', name: 'Elektrotechnik', color: '#c98500', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 0, creative: false },
+  { id: 'cat-digitalrechner', name: 'Digitalrechner', color: '#008300', isDefault: true, archived: false, weightPercent: 100, weeklyTargetMinutes: 0, creative: false },
+  { id: 'cat-vorlesungen', name: 'Vorlesungen', color: '#9085e9', isDefault: true, archived: false, weightPercent: 18.75, weeklyTargetMinutes: 0, creative: false },
+  { id: 'cat-video', name: 'Video-Schnitt (Social Media)', color: '#e66767', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0, creative: true },
+  { id: 'cat-sonstiges', name: 'Sonstiges', color: '#d55181', isDefault: true, archived: false, weightPercent: 50, weeklyTargetMinutes: 0, creative: false },
 ];
 
 export const WEIGHT_OPTIONS = [50, 75, 90, 100, 110, 120, 125, 150, 200];
@@ -41,6 +41,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
+    wallet: 'main',
     isDefault: true,
     preOwned: false,
     archived: false,
@@ -58,6 +59,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
+    wallet: 'main',
     isDefault: true,
     preOwned: false,
     archived: false,
@@ -75,6 +77,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
+    wallet: 'main',
     isDefault: true,
     preOwned: false,
     archived: false,
@@ -92,6 +95,7 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'mittel',
+    wallet: 'main',
     isDefault: true,
     preOwned: false,
     archived: false,
@@ -109,10 +113,51 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'hoch',
+    wallet: 'main',
     isDefault: true,
     preOwned: false,
     archived: false,
     sortOrder: 5,
+  },
+  {
+    id: 'rw-divine',
+    name: '7Hz x Crinacle Divine',
+    description: 'In-Ear-Monitore mit Crinacle-Abstimmung – detailreicher Klang für unterwegs und am Schreibtisch.',
+    category: 'Audio',
+    variant: 'In-Ear (IEM)',
+    icon: 'headphones',
+    imageUrl: '',
+    priceCents: 75000,
+    realPriceEuroCents: null,
+    productUrl: '',
+    priority: 'mittel',
+    wallet: 'main',
+    isDefault: true,
+    preOwned: false,
+    archived: false,
+    sortOrder: 3.5,
+  },
+];
+
+/** Creative rewards – unlocked only with Kreativ-Credits earned by video editing. */
+export const CREATIVE_REWARDS: DefaultRewardSeed[] = [
+  {
+    id: 'rw-schnitt-monitor',
+    name: 'Monitor für Video-Schnitt',
+    description: 'Farbtreuer Monitor fürs Schneiden und Color Grading. Modell frei wählbar – Name und Preis kannst du anpassen.',
+    category: 'Kreativ-Equipment',
+    variant: 'Farbtreu, für den Schnitt',
+    icon: 'monitor',
+    imageUrl: '',
+    priceCents: 120000,
+    realPriceEuroCents: null,
+    productUrl: '',
+    priority: 'hoch',
+    wallet: 'creative',
+    isDefault: true,
+    preOwned: false,
+    archived: false,
+    sortOrder: 10,
   },
 ];
 
@@ -129,6 +174,7 @@ export const PREOWNED_REWARDS: DefaultRewardSeed[] = [
     realPriceEuroCents: null,
     productUrl: '',
     priority: 'niedrig',
+    wallet: 'main',
     isDefault: true,
     preOwned: true,
     archived: false,
@@ -182,7 +228,8 @@ export const V3_DEFAULT_WEEKLY_TARGETS: Record<string, number> = {
   'cat-video': 240,
 };
 
-export const DEFAULT_REWARD_IDS = DEFAULT_REWARDS.map((r) => r.id);
+/** The five rewards of the original shop – the „Final Setup“ achievement refers to them. */
+export const DEFAULT_REWARD_IDS = ['rw-mousepad', 'rw-mx-master', 'rw-lofree-flow', 'rw-dt900', 'rw-flexispot'];
 
 export function defaultSettings(): Settings {
   return {
@@ -210,7 +257,7 @@ export function createInitialData(now: Date = new Date()): AppData {
     categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })),
     sessions: [],
     transactions: [],
-    rewards: [...PREOWNED_REWARDS, ...DEFAULT_REWARDS].map((r) => ({ ...r, createdAt })),
+    rewards: [...PREOWNED_REWARDS, ...DEFAULT_REWARDS, ...CREATIVE_REWARDS].map((r) => ({ ...r, createdAt })),
     purchases: [],
     achievementsSeen: {},
     activeTimer: null,

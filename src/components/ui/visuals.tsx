@@ -20,6 +20,22 @@ export function CreditCoin({ className }: { className?: string }) {
   );
 }
 
+/** Violet coin for Kreativ-Credits (the creative account). */
+export function CreativeCoin({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" className={cn('size-4 shrink-0', className)} aria-hidden>
+      <circle cx="10" cy="10" r="8.5" fill="#c99bf0" />
+      <circle cx="10" cy="10" r="6.2" fill="none" stroke="#5b3a7a" strokeOpacity="0.45" strokeWidth="1" />
+      <path d="M7.2 7.4 L13 10 L7.2 12.6 Z" fill="#3f2557" />
+    </svg>
+  );
+}
+
+/** Coin for an account. */
+export function WalletCoin({ wallet, className }: { wallet: 'main' | 'creative'; className?: string }) {
+  return wallet === 'main' ? <CreditCoin className={className} /> : <CreativeCoin className={className} />;
+}
+
 const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 
 /** Minimal line-art product illustrations – no external images required. */

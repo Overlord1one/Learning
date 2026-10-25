@@ -10,7 +10,13 @@
 export type ISODateTime = string; // 2026-10-13T08:15:00.000Z
 export type DayKey = string; // 2026-10-13 (local calendar day)
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
+
+/**
+ * Two separate accounts: Setup Credits (SC) for the desk setup and Kreativ-Credits
+ * (KC) that only creative subjects (video editing) earn, for creative equipment.
+ */
+export type Wallet = 'main' | 'creative';
 
 /** Rates that were valid when a session was recorded. Locked per session. */
 export interface RateSnapshot {
@@ -18,6 +24,8 @@ export interface RateSnapshot {
   creditCentsPerHour: number;
   /** XP earned per 60 focused minutes (default 60). */
   xpPerHour: number;
+  /** Kreativ-Credits (centi) per 60 minutes in a creative subject (default 1600 = 16 KC). */
+  creativeCentsPerHour: number;
 }
 
 export interface StudyCategory {
@@ -34,6 +42,8 @@ export interface StudyCategory {
   weightPercent: number;
   /** Planned study time per week in minutes (0 = no weekly target). */
   weeklyTargetMinutes: number;
+  /** Creative subjects additionally earn Kreativ-Credits. */
+  creative: boolean;
 }
 
 export type SessionSource = 'timer' | 'manual';
@@ -55,6 +65,8 @@ export interface StudySession {
   rates: RateSnapshot;
   /** Subject weighting locked in when the session was recorded (or its subject changed). */
   weightPercent: number;
+  /** Whether this session also earns Kreativ-Credits (locked like the weighting). */
+  creative: boolean;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
@@ -69,6 +81,8 @@ export type TransactionType =
 /** Append-only credit ledger. The balance is the sum of all amounts. */
 export interface CreditTransaction {
   id: string;
+  /** Account the amount is booked on. */
+  wallet: Wallet;
   type: TransactionType;
   /** Signed centi credits. */
   amountCents: number;
@@ -108,6 +122,8 @@ export interface Reward {
   realPriceEuroCents: number | null;
   productUrl: string;
   priority: RewardPriority;
+  /** Which account pays for it: Setup Credits or Kreativ-Credits. */
+  wallet: Wallet;
   /** Part of the original five-item shop. */
   isDefault: boolean;
   /** Already owned before using the app – shown in inventory, not purchasable. */
@@ -123,6 +139,8 @@ export interface RewardPurchase {
   rewardId: string;
   /** Snapshot of the reward name at unlock time for traceability. */
   rewardName: string;
+  /** Account the price was paid from. */
+  wallet: Wallet;
   /** Price paid at unlock time. Never changes afterwards. */
   priceCents: number;
   unlockedAt: ISODateTime;

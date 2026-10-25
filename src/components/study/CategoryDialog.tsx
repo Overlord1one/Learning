@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { Dialog } from '../ui/dialog';
-import { Button, Field, Input, Select } from '../ui/primitives';
+import { Button, Field, Input, Select, Toggle } from '../ui/primitives';
 import { useAppStore } from '../../store/appStore';
 import { CATEGORY_COLORS, WEIGHT_OPTIONS } from '../../domain/defaults';
 import { formatCredits, formatDecimal, formatWeight, parseDecimal } from '../../domain/format';
@@ -42,6 +42,7 @@ export function CategoryDialog({ open, onClose, onCreated, category }: { open: b
   const [color, setColor] = useState(nextColor);
   const [weight, setWeight] = useState(100);
   const [weekly, setWeekly] = useState('0');
+  const [creative, setCreative] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function CategoryDialog({ open, onClose, onCreated, category }: { open: b
       setColor(category?.color ?? nextColor);
       setWeight(category?.weightPercent ?? 100);
       setWeekly(formatDecimal((category?.weeklyTargetMinutes ?? 0) / 60));
+      setCreative(category?.creative ?? false);
       setError(null);
     }
   }, [open, category]);
@@ -59,10 +61,10 @@ export function CategoryDialog({ open, onClose, onCreated, category }: { open: b
     if (!Number.isFinite(weeklyHours) || weeklyHours < 0 || weeklyHours > 168) return setError('Bitte gib ein gültiges Wochenziel in Stunden an.');
     const weeklyMinutes = Math.round(weeklyHours * 60);
     if (category) {
-      const r = renameCategory(category.id, name, color, weight, weeklyMinutes);
+      const r = renameCategory(category.id, name, color, weight, weeklyMinutes, creative);
       if (!r.ok) return setError(r.error);
     } else {
-      const r = addCategory(name, color, weight, weeklyMinutes);
+      const r = addCategory(name, color, weight, weeklyMinutes, creative);
       if (!r.ok) return setError(r.error);
       onCreated?.(r.value);
     }
@@ -110,6 +112,15 @@ export function CategoryDialog({ open, onClose, onCreated, category }: { open: b
         <Field label="Wochenziel (Stunden)" htmlFor="cat-weekly" hint="Erscheint im Wochenplan auf dem Dashboard. 0 = kein Wochenziel.">
           <Input id="cat-weekly" inputMode="decimal" value={weekly} onChange={(e) => setWeekly(e.target.value)} placeholder="z. B. 4" />
         </Field>
+        <div className="rounded-xl border border-line-soft bg-[#111418] p-4">
+          <Toggle
+            id="cat-creative"
+            checked={creative}
+            onChange={setCreative}
+            label="Kreativ-Fach"
+            description={`Verdient zusätzlich ${formatCredits(rates.creativeCentsPerHour)} Kreativ-Credits pro Stunde für Kreativ-Equipment.`}
+          />
+        </div>
         <Field label="Farbe">
           <ColorPicker value={color} onChange={setColor} />
         </Field>

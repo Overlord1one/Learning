@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { CheckCircle2, Circle, History, Pencil, Timer, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { useData } from '../../store/hooks';
-import { sessionCredits, sessionXp } from '../../domain/economy';
-import { formatDate, formatInt, formatMinutes, formatSC } from '../../domain/format';
+import { sessionCreativeCredits, sessionCredits, sessionXp } from '../../domain/economy';
+import { formatDate, formatInt, formatKC, formatMinutes, formatSC } from '../../domain/format';
 import { parseDayKey } from '../../domain/dates';
 import type { StudySession } from '../../domain/types';
 import { Card, CardTitle, EmptyState, IconButton, Select, Button } from '../ui/primitives';
@@ -76,6 +76,7 @@ export function SessionHistory() {
                 </div>
                 <div className="hidden text-right sm:block">
                   <p className="tabular text-sm font-medium text-gold">+{formatSC(sessionCredits(s))}</p>
+                  {s.creative && <p className="tabular text-xs font-medium text-creative">+{formatKC(sessionCreativeCredits(s))}</p>}
                   <p className="tabular text-xs text-faint">+{formatInt(sessionXp(s))} XP</p>
                 </div>
                 <div className="flex gap-0.5 sm:opacity-60 sm:transition-opacity sm:group-hover:opacity-100">

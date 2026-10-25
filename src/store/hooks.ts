@@ -15,6 +15,7 @@ export function usePlayer() {
     return {
       xp,
       balanceCents: balanceCents(data.transactions),
+      creativeCents: balanceCents(data.transactions, 'creative'),
       level: progress.level,
       progress,
       rank: rankForLevel(progress.level, data.settings.ranks),

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ArrowUpCircle, BookOpen, Gift, Undo2 } from 'lucide-react';
 import { activityFeed } from '../domain/stats';
 import type { ActivityItem } from '../domain/stats';
-import { formatInt, formatMinutes, formatSC, formatShortDate, formatTime } from '../domain/format';
+import { formatAmount, formatInt, formatKC, formatMinutes, formatSC, formatShortDate, formatTime } from '../domain/format';
 import { rankForLevel } from '../domain/ranks';
 import { useData } from '../store/hooks';
 import { cn } from '../lib/cn';
@@ -34,6 +34,7 @@ export function ActivityList({ limit = 8 }: { limit?: number }) {
           right: (
             <div className="text-right">
               <p className="tabular text-sm font-medium text-gold">+{formatSC(item.credits)}</p>
+              {item.creativeCredits > 0 && <p className="tabular text-xs font-medium text-creative">+{formatKC(item.creativeCredits)}</p>}
               <p className="tabular text-xs text-faint">+{formatInt(item.xp)} XP</p>
             </div>
           ),
@@ -53,7 +54,7 @@ export function ActivityList({ limit = 8 }: { limit?: number }) {
           tone: 'text-gold bg-gold-soft',
           title: `Freigeschaltet: ${item.name}`,
           sub: 'Belohnung',
-          right: <p className="tabular text-sm font-medium text-muted">−{formatSC(item.priceCents)}</p>,
+          right: <p className="tabular text-sm font-medium text-muted">−{formatAmount(item.priceCents, item.wallet)}</p>,
         };
       case 'refund':
         return {
@@ -61,7 +62,7 @@ export function ActivityList({ limit = 8 }: { limit?: number }) {
           tone: 'text-muted bg-elevated',
           title: `Rückgängig: ${item.name}`,
           sub: 'Credits erstattet',
-          right: <p className="tabular text-sm font-medium text-muted">+{formatSC(item.priceCents)}</p>,
+          right: <p className="tabular text-sm font-medium text-muted">+{formatAmount(item.priceCents, item.wallet)}</p>,
         };
     }
   };

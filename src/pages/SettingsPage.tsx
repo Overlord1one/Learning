@@ -27,8 +27,8 @@ import { useAppStore } from '../store/appStore';
 import { useActiveCategories, useData } from '../store/hooks';
 import { DEFAULT_RATES } from '../domain/economy';
 import { DEFAULT_RANKS } from '../domain/ranks';
-import { formatCredits, formatDate, formatDecimal, formatSC, formatTime, formatWeight, parseCreditsInput } from '../domain/format';
-import type { AccentName, MotionPreference, RankTier, Reward, StudyCategory, TransactionType } from '../domain/types';
+import { formatAmount, formatCredits, formatDate, formatDecimal, formatTime, formatWeight, parseCreditsInput } from '../domain/format';
+import type { AccentName, MotionPreference, RankTier, RateSnapshot, Reward, StudyCategory, TransactionType } from '../domain/types';
 import { Badge, Button, Card, Field, IconButton, Input, PageHeader, Segmented, Select, Toggle } from '../components/ui/primitives';
 import { ConfirmDialog } from '../components/ui/dialog';
 import { ProductVisual } from '../components/ui/visuals';
@@ -177,18 +177,27 @@ function EconomySection() {
   const feedback = useSaveFeedback();
   const [credits, setCredits] = useState(formatCredits(data.settings.rates.creditCentsPerHour));
   const [xp, setXp] = useState(String(data.settings.rates.xpPerHour));
+  const [kc, setKc] = useState(formatCredits(data.settings.rates.creativeCentsPerHour));
   const [confirm, setConfirm] = useState(false);
 
   const creditCents = parseCreditsInput(credits);
   const xpRate = Number(xp);
-  const changed = creditCents !== data.settings.rates.creditCentsPerHour || xpRate !== data.settings.rates.xpPerHour;
-  const isDefault = data.settings.rates.creditCentsPerHour === DEFAULT_RATES.creditCentsPerHour && data.settings.rates.xpPerHour === DEFAULT_RATES.xpPerHour;
+  const kcCents = parseCreditsInput(kc);
+  const current = data.settings.rates;
+  const changed = creditCents !== current.creditCentsPerHour || xpRate !== current.xpPerHour || kcCents !== current.creativeCentsPerHour;
+  const isDefault =
+    current.creditCentsPerHour === DEFAULT_RATES.creditCentsPerHour &&
+    current.xpPerHour === DEFAULT_RATES.xpPerHour &&
+    current.creativeCentsPerHour === DEFAULT_RATES.creativeCentsPerHour;
 
-  const apply = (rates: { creditCentsPerHour: number; xpPerHour: number }) => {
-    if (!Number.isFinite(rates.creditCentsPerHour)) return feedback({ ok: false, error: 'Ungültige Credit-Rate.' });
+  const apply = (rates: RateSnapshot) => {
+    if (!Number.isFinite(rates.creditCentsPerHour) || !Number.isFinite(rates.creativeCentsPerHour) || rates.creativeCentsPerHour < 0) {
+      return feedback({ ok: false, error: 'Ungültige Credit-Rate.' });
+    }
     if (feedback(update({ rates }), 'Raten aktualisiert')) {
       setCredits(formatCredits(rates.creditCentsPerHour));
       setXp(String(rates.xpPerHour));
+      setKc(formatCredits(rates.creativeCentsPerHour));
     }
   };
 
@@ -200,6 +209,9 @@ function EconomySection() {
         </Field>
         <Field label="XP pro Stunde" htmlFor="set-xp">
           <Input id="set-xp" type="number" min={1} value={xp} onChange={(e) => setXp(e.target.value)} />
+        </Field>
+        <Field label="Kreativ-Credits pro Stunde Schnitt" htmlFor="set-kc" hint="Zusätzlich für Kreativ-Fächer (Video-Schnitt), ohne Gewichtung." className="sm:col-span-2">
+          <Input id="set-kc" inputMode="decimal" value={kc} onChange={(e) => setKc(e.target.value)} />
         </Field>
       </div>
       <p className="mt-4 rounded-xl border border-line-soft bg-[#111418] px-4 py-3 text-[13px] leading-relaxed text-muted">
@@ -222,8 +234,8 @@ function EconomySection() {
         tone="primary"
         title="Raten ändern?"
         confirmLabel="Übernehmen"
-        description={`Ab sofort: ${credits} SC und ${xp} XP pro Stunde. Bereits erfasste Sessions und Käufe bleiben unverändert.`}
-        onConfirm={() => apply({ creditCentsPerHour: creditCents, xpPerHour: xpRate })}
+        description={`Ab sofort: ${credits} SC, ${xp} XP und ${kc} KC (Schnitt) pro Stunde. Bereits erfasste Sessions und Käufe bleiben unverändert.`}
+        onConfirm={() => apply({ creditCentsPerHour: creditCents, xpPerHour: xpRate, creativeCentsPerHour: kcCents })}
       />
     </Section>
   );
@@ -389,7 +401,7 @@ function ShopSection() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-fg">{r.name}</p>
                 <p className="tabular text-xs text-faint">
-                  {r.preOwned ? 'Bereits vorhanden' : formatSC(r.priceCents)}
+                  {r.preOwned ? 'Bereits vorhanden' : formatAmount(r.priceCents, r.wallet)}
                   {r.isDefault ? ' · Standard' : ' · Eigene'}
                   {active ? ' · freigeschaltet' : ''}
                   {r.archived ? ' · ausgeblendet' : ''}
@@ -470,9 +482,9 @@ function LedgerSection() {
                     </td>
                     <td className="px-1 py-2 text-xs text-muted">{TX_LABEL[t.type]}</td>
                     <td className="max-w-[220px] truncate px-1 py-2 text-fg">{t.note}</td>
-                    <td className={cn('px-1 py-2 text-right font-medium whitespace-nowrap', t.amountCents >= 0 ? 'text-gold' : 'text-muted')}>
+                    <td className={cn('px-1 py-2 text-right font-medium whitespace-nowrap', t.amountCents < 0 ? 'text-muted' : t.wallet === 'creative' ? 'text-creative' : 'text-gold')}>
                       {t.amountCents >= 0 ? '+' : '−'}
-                      {formatSC(Math.abs(t.amountCents))}
+                      {formatAmount(Math.abs(t.amountCents), t.wallet)}
                     </td>
                     <td className="py-1 text-right">{p && !p.refundedAt && <IconButton icon={Undo2} label="Freischaltung rückgängig machen" onClick={() => setUndo(p.id)} />}</td>
                   </tr>
@@ -492,7 +504,7 @@ function LedgerSection() {
         onClose={() => setUndo(null)}
         title="Freischaltung rückgängig machen?"
         confirmLabel="Rückgängig machen"
-        description={undoPurchase && `${undoPurchase.rewardName}: ${formatSC(undoPurchase.priceCents)} werden erstattet. Beide Buchungen bleiben im Verlauf sichtbar.`}
+        description={undoPurchase && `${undoPurchase.rewardName}: ${formatAmount(undoPurchase.priceCents, undoPurchase.wallet)} werden erstattet. Beide Buchungen bleiben im Verlauf sichtbar.`}
         onConfirm={() => {
           if (!undo) return;
           const r = refund(undo);

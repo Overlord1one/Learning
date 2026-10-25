@@ -28,7 +28,7 @@ const NOW = new Date(2026, 9, 13, 18, 0, 0);
 const ctx = { now: NOW };
 
 /** Logic tests use the classic 10 SC/h base rate so the numbers stay easy to read. */
-const LEGACY_RATES = { creditCentsPerHour: 1000, xpPerHour: 60 };
+const LEGACY_RATES = { creditCentsPerHour: 1000, xpPerHour: 60, creativeCentsPerHour: 1600 };
 function init(now: Date = NOW): AppData {
   const data = createInitialData(now);
   return { ...data, settings: { ...data.settings, rates: { ...LEGACY_RATES } } };
@@ -102,13 +102,14 @@ describe('acceptance', () => {
   it('a brand-new user starts from zero with no invented history', () => {
     const data = init(NOW);
     const p = playerSnapshot(data);
-    expect(p).toEqual({ balanceCents: 0, xp: 0, level: 1 });
+    expect(p).toEqual({ balanceCents: 0, creativeCents: 0, xp: 0, level: 1 });
     expect(data.sessions).toHaveLength(0);
     expect(data.transactions).toHaveLength(0);
     const shop = data.rewards.filter((r) => !r.preOwned);
-    expect(shop).toHaveLength(5);
+    expect(shop).toHaveLength(7); // 5 original + Divine + editing monitor
     expect(shop.every((r) => rewardProgress(data, r).status === 'gesperrt')).toBe(true);
-    expect(shop.reduce((a, r) => a + r.priceCents, 0)).toBe(455000);
+    const original = shop.filter((r) => ['rw-mousepad', 'rw-mx-master', 'rw-lofree-flow', 'rw-dt900', 'rw-flexispot'].includes(r.id));
+    expect(original.reduce((a, r) => a + r.priceCents, 0)).toBe(455000);
     expect(data.rewards.find((r) => r.preOwned)?.name).toMatch(/ROCCAT/);
     expect(evaluateAchievements(data, NOW).some((a) => a.unlocked)).toBe(false);
   });
@@ -182,16 +183,16 @@ describe('acceptance', () => {
     let data = log(init(NOW), 90);
     const id = data.sessions[0]!.id;
     data = unwrap(updateSession(data, id, { minutes: 30 }, ctx));
-    expect(playerSnapshot(data)).toEqual({ balanceCents: 500, xp: 30, level: 1 });
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 500, xp: 30, level: 1 });
     data = unwrap(updateSession(data, id, { minutes: 360 }, ctx));
-    expect(playerSnapshot(data)).toEqual({ balanceCents: 6000, xp: 360, level: 2 });
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 6000, xp: 360, level: 2 });
     expect(data.transactions.map((t) => t.type)).toEqual(['session_earn', 'session_adjust', 'session_adjust']);
   });
 
   it('deleting a session revokes its credits and keeps history', () => {
     let data = log(init(NOW), 90);
     data = unwrap(deleteSession(data, data.sessions[0]!.id, ctx));
-    expect(playerSnapshot(data)).toEqual({ balanceCents: 0, xp: 0, level: 1 });
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 0, xp: 0, level: 1 });
     expect(data.transactions).toHaveLength(2);
   });
 
@@ -216,9 +217,9 @@ describe('acceptance', () => {
 
   it('rate changes only affect new sessions', () => {
     let data = log(init(NOW), 60);
-    data = unwrap(updateSettings(data, { rates: { creditCentsPerHour: 2000, xpPerHour: 120 } }));
+    data = unwrap(updateSettings(data, { rates: { creditCentsPerHour: 2000, xpPerHour: 120, creativeCentsPerHour: 1600 } }));
     data = log(data, 60, '2026-10-12');
-    expect(playerSnapshot(data)).toEqual({ balanceCents: 3000, xp: 180, level: 1 });
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 3000, xp: 180, level: 1 });
     // Editing the first session still uses its locked rate.
     data = unwrap(updateSession(data, data.sessions[0]!.id, { minutes: 120 }, ctx));
     expect(balanceCents(data.transactions)).toBe(4000);
@@ -392,7 +393,7 @@ describe('migration v1 → v2', () => {
     raw.sessions[0].categoryId = 'cat-mathe';
     raw.transactions[0].sessionId = raw.sessions[0].id;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(7);
+    expect(migrated.schemaVersion).toBe(8);
     expect(migrated.categories.map((c) => c.id)).toContain('cat-digitalrechner');
     expect(migrated.categories.map((c) => c.id)).toContain('cat-video');
     expect(migrated.sessions[0]!.weightPercent).toBe(150);
@@ -446,7 +447,7 @@ describe('school-hour weighting (v4)', () => {
     raw.rewards.find((r: { id: string }) => r.id === 'rw-mousepad').priceCents = 25000;
     raw.rewards.find((r: { id: string }) => r.id === 'rw-dt900').priceCents = 12345; // customised
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(7);
+    expect(migrated.schemaVersion).toBe(8);
     expect(migrated.categories.find((c) => c.id === 'cat-mathe')!.weightPercent).toBe(150);
     expect(migrated.categories.every((c) => c.weeklyTargetMinutes === 0)).toBe(true);
     expect(migrated.sessions[0]!.weightPercent).toBe(150);
@@ -481,7 +482,7 @@ describe('lectures as a small bonus (v6)', () => {
     raw.sessions[0].weightPercent = oldWeight;
     raw.transactions[0].amountCents = oldCents;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(7);
+    expect(migrated.schemaVersion).toBe(8);
     expect(migrated.categories.find((c) => c.id === 'cat-vorlesungen')!.weightPercent).toBe(18.75);
     expect(migrated.sessions[0]!.weightPercent).toBe(18.75);
     expect(balanceCents(migrated.transactions)).toBe(450 + 2400); // at 16 SC/h
@@ -512,5 +513,74 @@ describe('base rate 16 SC/h (v7)', () => {
     custom.settings.rates.creditCentsPerHour = 1200;
     const kept = unwrap(validateAppData(migrate(custom)));
     expect(balanceCents(kept.transactions)).toBe(3250);
+  });
+});
+
+describe('Kreativ-Konto (v8)', () => {
+  const add = (data: AppData, categoryId: string, minutes: number, date = '2026-10-13') =>
+    unwrap(addSession(data, { categoryId, minutes, date, source: 'manual' }, ctx)).data;
+
+  it('video editing earns SC and Kreativ-Credits, other subjects only SC', () => {
+    let data = add(createInitialData(NOW), 'cat-video', 60);
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 800, creativeCents: 1600 }); // 16 SC × 0,5 + 16 KC
+    data = add(data, 'cat-mathe', 60);
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: 3200, creativeCents: 1600 });
+    expect(validateAppData(JSON.parse(JSON.stringify(data))).ok).toBe(true);
+  });
+
+  it('creative rewards are paid only from the creative account', () => {
+    let data = add(createInitialData(NOW), 'cat-mathe', 600); // 240 SC, 0 KC
+    const monitor = data.rewards.find((r) => r.id === 'rw-schnitt-monitor')!;
+    expect(monitor.wallet).toBe('creative');
+    expect(purchaseReward(data, monitor.id, ctx).ok).toBe(false); // SC cannot pay for it
+    for (let d = 0; d < 8; d++) data = add(data, 'cat-video', 600, shiftDayKey('2026-10-12', -d)); // 80 h → 1.280 KC
+    const before = playerSnapshot(data);
+    data = unwrap(purchaseReward(data, monitor.id, ctx));
+    const after = playerSnapshot(data);
+    expect(after.creativeCents).toBe(before.creativeCents - 120000);
+    expect(after.balanceCents).toBe(before.balanceCents); // SC untouched
+    expect(goalReward(data)?.wallet).toBe('main');
+    data = unwrap(refundPurchase(data, data.purchases[0]!.id, ctx));
+    expect(playerSnapshot(data).creativeCents).toBe(before.creativeCents);
+  });
+
+  it('protects the creative balance when editing spent video sessions', () => {
+    let data = add(createInitialData(NOW), 'cat-video', 600);
+    data = add(data, 'cat-video', 600, '2026-10-12');
+    data = add(data, 'cat-video', 600, '2026-10-11');
+    data = add(data, 'cat-video', 600, '2026-10-10');
+    data = add(data, 'cat-video', 600, '2026-10-09'); // 50 h → 800 KC
+    data = { ...data, rewards: data.rewards.map((r) => (r.id === 'rw-schnitt-monitor' ? { ...r, priceCents: 70000 } : r)) };
+    data = unwrap(purchaseReward(data, 'rw-schnitt-monitor', ctx));
+    expect(deleteSession(data, data.sessions[0]!.id, ctx).ok).toBe(false);
+    expect(updateSession(data, data.sessions[0]!.id, { categoryId: 'cat-mathe' }, ctx).ok).toBe(false);
+  });
+
+  it('adds the 7Hz x Crinacle Divine to the setup shop', () => {
+    const divine = createInitialData(NOW).rewards.find((r) => r.id === 'rw-divine')!;
+    expect(divine.name).toBe('7Hz x Crinacle Divine');
+    expect(divine.wallet).toBe('main');
+  });
+
+  it('migrates v7 data: KC retroactively for video editing, new rewards, main wallet for old bookings', () => {
+    let current = add(createInitialData(NOW), 'cat-video', 90);
+    current = add(current, 'cat-mathe', 60);
+    const raw = JSON.parse(JSON.stringify(current));
+    raw.schemaVersion = 7;
+    raw.transactions = raw.transactions.filter((t: { wallet: string }) => t.wallet === 'main').map(({ wallet, ...t }: { wallet: string }) => t);
+    for (const s of raw.sessions) {
+      delete s.creative;
+      delete s.rates.creativeCentsPerHour;
+    }
+    for (const c of raw.categories) delete c.creative;
+    raw.rewards = raw.rewards.filter((r: { id: string }) => !['rw-divine', 'rw-schnitt-monitor'].includes(r.id)).map(({ wallet, ...r }: { wallet: string }) => r);
+    delete raw.settings.rates.creativeCentsPerHour;
+    const migrated = unwrap(validateAppData(migrate(raw)));
+    expect(migrated.schemaVersion).toBe(8);
+    expect(balanceCents(migrated.transactions, 'creative')).toBe(2400); // 90 min × 16 KC/h
+    expect(balanceCents(migrated.transactions)).toBe(1200 + 2400);
+    expect(migrated.rewards.some((r) => r.id === 'rw-divine')).toBe(true);
+    expect(migrated.rewards.find((r) => r.id === 'rw-schnitt-monitor')?.wallet).toBe('creative');
+    expect(migrated.categories.find((c) => c.id === 'cat-video')?.creative).toBe(true);
   });
 });

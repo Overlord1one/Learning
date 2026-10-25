@@ -3,7 +3,7 @@ import * as cmd from '../domain/commands';
 import { evaluateAchievements } from '../domain/achievements';
 import type { AchievementDef } from '../domain/achievements';
 import { createInitialData } from '../domain/defaults';
-import { sessionCredits, sessionXp } from '../domain/economy';
+import { balanceCents, sessionCreativeCredits, sessionCredits, sessionXp } from '../domain/economy';
 import { migrate, validateAppData } from '../domain/schema';
 import { newlyAffordable, playerSnapshot } from '../domain/stats';
 import type { PlayerSnapshot } from '../domain/stats';
@@ -17,6 +17,8 @@ export interface SessionCelebration {
   kind: 'session';
   session: StudySession;
   credits: number;
+  /** Kreativ-Credits earned (0 for non-creative subjects). */
+  creativeCredits: number;
   xp: number;
   before: PlayerSnapshot;
   after: PlayerSnapshot;
@@ -72,8 +74,8 @@ interface AppState {
   restoreDefaultShop: () => Result<void>;
   setGoalReward: (id: string | null) => Result<void>;
   // Categories
-  addCategory: (name: string, color: string, weightPercent?: number, weeklyTargetMinutes?: number) => Result<string>;
-  renameCategory: (id: string, name: string, color: string, weightPercent?: number, weeklyTargetMinutes?: number) => Result<void>;
+  addCategory: (name: string, color: string, weightPercent?: number, weeklyTargetMinutes?: number, creative?: boolean) => Result<string>;
+  renameCategory: (id: string, name: string, color: string, weightPercent?: number, weeklyTargetMinutes?: number, creative?: boolean) => Result<void>;
   removeCategory: (id: string) => Result<void>;
   // Settings & data
   updateSettings: (patch: Partial<Settings>) => Result<void>;
@@ -135,10 +137,14 @@ export const useAppStore = create<AppState>()((set, get) => {
         kind: 'session',
         session: outcome.session,
         credits: sessionCredits(outcome.session),
+        creativeCredits: sessionCreativeCredits(outcome.session),
         xp: sessionXp(outcome.session),
         before,
         after,
-        affordable: newlyAffordable(data, before.balanceCents, after.balanceCents),
+        affordable: [
+          ...newlyAffordable(data, before.balanceCents, after.balanceCents),
+          ...newlyAffordable(data, before.creativeCents, after.creativeCents, 'creative'),
+        ],
         achievements,
       },
     });
@@ -192,7 +198,7 @@ export const useAppStore = create<AppState>()((set, get) => {
           kind: 'unlock',
           reward,
           priceCents: reward.priceCents,
-          balanceAfter: playerSnapshot(data).balanceCents,
+          balanceAfter: balanceCents(data.transactions, reward.wallet),
           achievements,
         },
       });
@@ -212,14 +218,14 @@ export const useAppStore = create<AppState>()((set, get) => {
     restoreDefaultShop: () => apply(cmd.restoreDefaultShop(get().data, { now: now() })),
     setGoalReward: (id) => apply(cmd.setGoalReward(get().data, id)),
 
-    addCategory(name, color, weightPercent, weeklyTargetMinutes) {
-      const result = cmd.addCategory(get().data, name, color, weightPercent, weeklyTargetMinutes);
+    addCategory(name, color, weightPercent, weeklyTargetMinutes, creative) {
+      const result = cmd.addCategory(get().data, name, color, weightPercent, weeklyTargetMinutes, creative);
       if (!result.ok) return result;
       set({ data: result.value.data });
       return ok(result.value.category.id);
     },
-    renameCategory: (id, name, color, weightPercent, weeklyTargetMinutes) =>
-      apply(cmd.renameCategory(get().data, id, name, color, weightPercent, weeklyTargetMinutes)),
+    renameCategory: (id, name, color, weightPercent, weeklyTargetMinutes, creative) =>
+      apply(cmd.renameCategory(get().data, id, name, color, weightPercent, weeklyTargetMinutes, creative)),
     removeCategory: (id) => apply(cmd.removeCategory(get().data, id)),
 
     updateSettings: (patch) => apply(cmd.updateSettings(get().data, patch)),

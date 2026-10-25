@@ -1,21 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
-import { Check, LayoutGrid, Package, Plus, Search, ShoppingBag, Sparkles } from 'lucide-react';
+import { Check, Clapperboard, LayoutGrid, Package, Plus, Search, ShoppingBag, Sparkles } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useData, usePlayer } from '../store/hooks';
 import { inventory, rewardProgress, shopRewards } from '../domain/stats';
 import type { RewardStatus } from '../domain/stats';
-import { formatDate, formatSC } from '../domain/format';
+import { formatAmount, formatDate } from '../domain/format';
+import type { Wallet } from '../domain/types';
+import { cn } from '../lib/cn';
 import type { Reward } from '../domain/types';
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Segmented, Select, Toggle } from '../components/ui/primitives';
 import { ConfirmDialog } from '../components/ui/dialog';
-import { CreditCoin, ProductVisual } from '../components/ui/visuals';
+import { ProductVisual, WalletCoin } from '../components/ui/visuals';
 import { RewardCard } from '../components/shop/RewardCard';
 import { RewardDetailDialog } from '../components/shop/RewardDetailDialog';
 import { RewardFormDialog } from '../components/shop/RewardFormDialog';
 
-type View = 'shop' | 'inventar';
+type View = 'shop' | 'kreativ' | 'inventar';
 type StatusFilter = 'alle' | RewardStatus;
 type Sort = 'standard' | 'preis' | 'fortschritt' | 'prioritaet';
 
@@ -28,7 +30,8 @@ export function ShopPage() {
   const pushToast = useAppStore((s) => s.pushToast);
   const [params, setParams] = useSearchParams();
 
-  const view: View = params.get('ansicht') === 'inventar' ? 'inventar' : 'shop';
+  const view: View = params.get('ansicht') === 'inventar' ? 'inventar' : params.get('ansicht') === 'kreativ' ? 'kreativ' : 'shop';
+  const wallet: Wallet = view === 'kreativ' ? 'creative' : 'main';
   const detailId = params.get('belohnung');
   const creating = params.get('neu') === '1';
 
@@ -46,7 +49,8 @@ export function ShopPage() {
     setParams(next, { replace: true });
   };
 
-  const items = useMemo(() => shopRewards(data).map((r) => rewardProgress(data, r, player.balanceCents)), [data, player.balanceCents]);
+  const items = useMemo(() => shopRewards(data, wallet).map((r) => rewardProgress(data, r)), [data, wallet]);
+  const balance = wallet === 'main' ? player.balanceCents : player.creativeCents;
   const categories = useMemo(() => [...new Set(items.map((i) => i.reward.category))], [items]);
 
   const filtered = useMemo(() => {
@@ -90,9 +94,9 @@ export function ShopPage() {
 
       <div className="mb-6 grid grid-cols-3 gap-3">
         <Card className="!p-4">
-          <p className="text-xs text-faint">Guthaben</p>
-          <p className="tabular mt-1 flex items-center gap-1.5 text-lg font-semibold text-gold sm:text-xl">
-            <CreditCoin className="hidden sm:block" /> {formatSC(player.balanceCents)}
+          <p className="text-xs text-faint">{wallet === 'main' ? 'Guthaben' : 'Kreativ-Konto'}</p>
+          <p className={cn('tabular mt-1 flex items-center gap-1.5 text-lg font-semibold sm:text-xl', wallet === 'main' ? 'text-gold' : 'text-creative')}>
+            <WalletCoin wallet={wallet} className="hidden sm:block" /> {formatAmount(balance, wallet)}
           </p>
         </Card>
         <Card className="!p-4">
@@ -103,7 +107,7 @@ export function ShopPage() {
         </Card>
         <Card className="!p-4">
           <p className="text-xs text-faint">Shop-Wert</p>
-          <p className="tabular mt-1 text-lg font-semibold text-fg sm:text-xl">{formatSC(totalValue)}</p>
+          <p className="tabular mt-1 text-lg font-semibold text-fg sm:text-xl">{formatAmount(totalValue, wallet)}</p>
         </Card>
       </div>
 
@@ -111,13 +115,14 @@ export function ShopPage() {
         <Segmented<View>
           label="Ansicht"
           value={view}
-          onChange={(v) => setParam('ansicht', v === 'inventar' ? 'inventar' : null)}
+          onChange={(v) => setParam('ansicht', v === 'shop' ? null : v)}
           options={[
             { value: 'shop', label: 'Shop', icon: LayoutGrid },
+            { value: 'kreativ', label: 'Kreativ', icon: Clapperboard },
             { value: 'inventar', label: `Inventar (${owned.length})`, icon: Package },
           ]}
         />
-        {view === 'shop' && (
+        {view !== 'inventar' && (
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative sm:w-56">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint" aria-hidden />
@@ -149,7 +154,18 @@ export function ShopPage() {
         )}
       </div>
 
-      {view === 'shop' ? (
+      {view === 'kreativ' && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-creative/20 bg-creative-soft px-4 py-3.5 text-[13px] leading-relaxed text-muted">
+          <Clapperboard className="mt-0.5 size-4 shrink-0 text-creative" aria-hidden />
+          <p>
+            <span className="font-medium text-fg">Kreativ-Konto:</span> Jede Stunde Video-Schnitt bringt zusätzlich zu den normalen SC{' '}
+            <span className="text-creative">{formatAmount(data.settings.rates.creativeCentsPerHour, 'creative')}</span>. Damit schaltest du ausschließlich Kreativ-Equipment frei – z. B.
+            einen Schnitt-Monitor oder Kamera-Zubehör. Eigene Kreativ-Belohnungen legst du über „Eigene Belohnung“ an.
+          </p>
+        </div>
+      )}
+
+      {view !== 'inventar' ? (
         filtered.length === 0 ? (
           <Card>
             <EmptyState
@@ -188,7 +204,12 @@ export function ShopPage() {
         }}
       />
 
-      <RewardFormDialog open={creating || !!editing} reward={editing} onClose={() => (editing ? setEditing(null) : setParam('neu', null))} />
+      <RewardFormDialog
+        open={creating || !!editing}
+        reward={editing}
+        defaultWallet={wallet}
+        onClose={() => (editing ? setEditing(null) : setParam('neu', null))}
+      />
 
       <ConfirmDialog
         open={!!confirming}
@@ -196,12 +217,14 @@ export function ShopPage() {
         onConfirm={confirmUnlock}
         tone="gold"
         title="Belohnung freischalten?"
-        confirmLabel={confirming ? `Für ${formatSC(confirming.priceCents)} freischalten` : 'Freischalten'}
+        confirmLabel={confirming ? `Für ${formatAmount(confirming.priceCents, confirming.wallet)} freischalten` : 'Freischalten'}
         description={
           confirming && (
             <>
-              <span className="font-medium text-fg">{confirming.name}</span> wird für {formatSC(confirming.priceCents)} virtuell freigeschaltet. Dein Guthaben sinkt auf{' '}
-              {formatSC(player.balanceCents - confirming.priceCents)}. XP und Level bleiben unverändert. Es wird nichts bestellt oder bezahlt.
+              <span className="font-medium text-fg">{confirming.name}</span> wird für {formatAmount(confirming.priceCents, confirming.wallet)} virtuell freigeschaltet.{' '}
+              {confirming.wallet === 'main' ? 'Dein Guthaben' : 'Dein Kreativ-Konto'} sinkt auf{' '}
+              {formatAmount((confirming.wallet === 'main' ? player.balanceCents : player.creativeCents) - confirming.priceCents, confirming.wallet)}. XP und Level bleiben
+              unverändert. Es wird nichts bestellt oder bezahlt.
             </>
           )
         }
@@ -247,7 +270,7 @@ function InventoryView({ onOpen }: { onOpen: (id: string) => void }) {
                     Virtuell freigeschaltet
                   </Badge>
                 )}
-                {purchase && <span className="text-xs text-faint">{formatDate(new Date(purchase.unlockedAt))} · {formatSC(purchase.priceCents)}</span>}
+                {purchase && <span className="text-xs text-faint">{formatDate(new Date(purchase.unlockedAt))} · {formatAmount(purchase.priceCents, purchase.wallet)}</span>}
               </div>
               {purchase && (
                 <div className="mt-3">
