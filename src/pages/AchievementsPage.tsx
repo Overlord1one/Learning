@@ -20,7 +20,7 @@ export function AchievementsPage() {
       <PageHeader
         eyebrow="Erfolge"
         title="Abzeichen"
-        description="Erfolge werden automatisch aus deinem echten Fortschritt abgeleitet. Sie bringen Abzeichen, keine zusätzlichen Credits."
+        description="Erfolge werden automatisch aus deinem echten Lernfortschritt abgeleitet – Kreativ-Fächer wie Video-Schnitt zählen hier nicht mit. Sie bringen Abzeichen, keine zusätzlichen Credits."
       />
 
       <Card className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">

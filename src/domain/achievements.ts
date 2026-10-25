@@ -152,7 +152,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 ];
 
 export function achievementContext(data: AppData, now: Date): AchievementContext {
-  const stats = studyStats(data.sessions, now);
+  // Learning achievements count only learning – creative subjects (video editing) are excluded.
+  const stats = studyStats(data.sessions.filter((s) => !s.creative), now);
   return {
     totalMinutes: stats.totalMinutes,
     sessionCount: stats.sessionCount,

@@ -584,3 +584,13 @@ describe('Kreativ-Konto (v8)', () => {
     expect(migrated.categories.find((c) => c.id === 'cat-video')?.creative).toBe(true);
   });
 });
+
+describe('learning achievements ignore creative subjects', () => {
+  it('video editing does not unlock Erster Schritt or Deep Work', () => {
+    let data = unwrap(addSession(createInitialData(NOW), { categoryId: 'cat-video', minutes: 180, date: '2026-10-13', source: 'manual' }, ctx)).data;
+    const unlocked = () => evaluateAchievements(data, NOW).filter((a) => a.unlocked).map((a) => a.def.id);
+    expect(unlocked()).toEqual([]);
+    data = unwrap(addSession(data, { categoryId: 'cat-mathe', minutes: 120, date: '2026-10-13', source: 'manual' }, ctx)).data;
+    expect(unlocked()).toEqual(expect.arrayContaining(['erster-schritt', 'deep-work']));
+  });
+});
