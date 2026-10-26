@@ -46,11 +46,11 @@ React 19 · TypeScript (strict) · Vite · Tailwind CSS 4 · Motion · Lucide ·
 
 **Fach-Gewichtung (Priorität):** Mathematik ×1,5 (8 Schulstunden pro Woche, doppelt so viele wie die anderen Fächer) · Programmieren (CS50x, CS50P) ×1,2 · Elektrotechnik ×1 · Digitalrechner ×1 · Video-Schnitt (Social Media) ×0,5 · Sonstiges ×0,5 · Vorlesungen ×0,1875. Die Gewichtung wird pro Session gespeichert; spätere Änderungen gelten nur für neue Sessions.
 
-**Kreativ-Konto:** Kreativ-Fächer (Video-Schnitt) verdienen zusätzlich zu den normalen SC **Kreativ-Credits (KC)** – 16 KC pro Stunde, ohne Gewichtung. Kreativ-Belohnungen (z. B. „Monitor für Video-Schnitt“, 1.200 KC ≈ 75 h Schnitt) lassen sich nur mit KC freischalten. Jede Buchung im Ledger gehört zu genau einem Konto (`wallet: main | creative`).
+**Kreativ-Konto:** Kreativ-Fächer (Video-Schnitt) verdienen zusätzlich zu den normalen SC **Kreativ-Credits (KC)** – 16 KC pro Stunde, ohne Gewichtung. Kreativ-Belohnungen (z. B. „Monitor für Video-Schnitt“, 1.200 KC ≈ 75 h Schnitt) lassen sich nur mit KC freischalten. Jede Buchung im Ledger gehört zu genau einem Konto (`wallet: main | creative`). Belohnungen mit `wallet: both` (z. B. Rode PodMic USB) lassen sich mit SC, KC oder einer Mischung bezahlen; die Freischaltung speichert den KC-Anteil, eine Rücknahme erstattet beide Teile auf ihr Konto.
 
 **Wochenziele:** optional pro Fach unter *Einstellungen → Lernkategorien & Wochenziele*; sobald eines gesetzt ist, erscheint der Wochenplan auf dem Dashboard.
 
-**Belohnungen:** Mauspad 150 SC · MX Master 3S 400 SC · Lofree Flow 2 700 SC · 7Hz x Crinacle Divine 750 SC · DT 900 PRO X 800 SC · FlexiSpot E7 Pro 2.500 SC (die fünf Originale zusammen 4.550 SC ≈ 284 h bei ×1).
+**Belohnungen:** Mauspad 150 SC · MX Master 3S 400 SC · Lofree Flow 2 700 SC · 7Hz x Crinacle Divine 750 SC · Rode PodMic USB 800 SC/KC · DT 900 PRO X 800 SC · FlexiSpot E7 Pro 2.500 SC (die fünf Originale zusammen 4.550 SC ≈ 284 h bei ×1).
 
 - Credits werden intern als ganzzahlige **Centi-Credits** (1 SC = 100) gespeichert – keine Gleitkommafehler.
 - Das Guthaben ist die **Summe eines Ledgers** (`session_earn`, `session_adjust`, `session_revoke`, `purchase`, `refund`). Es gibt keinen separat gespeicherten Kontostand.

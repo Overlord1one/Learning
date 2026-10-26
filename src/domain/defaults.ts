@@ -137,6 +137,24 @@ export const DEFAULT_REWARDS: DefaultRewardSeed[] = [
     archived: false,
     sortOrder: 3.5,
   },
+  {
+    id: 'rw-podmic-usb',
+    name: 'Rode PodMic USB',
+    description: 'Dynamisches Broadcast-Mikrofon mit USB und XLR – für Calls, Lern-Videos und Voice-over beim Schnitt.',
+    category: 'Audio',
+    variant: 'USB + XLR',
+    icon: 'mic',
+    imageUrl: '',
+    priceCents: 80000,
+    realPriceEuroCents: null,
+    productUrl: '',
+    priority: 'mittel',
+    wallet: 'both',
+    isDefault: true,
+    preOwned: false,
+    archived: false,
+    sortOrder: 4.5,
+  },
 ];
 
 /** Creative rewards – unlocked only with Kreativ-Credits earned by video editing. */

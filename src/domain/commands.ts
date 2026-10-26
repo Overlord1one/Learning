@@ -4,7 +4,7 @@
  * They are framework-agnostic so a future backend (e.g. Supabase) can reuse
  * the same rules server-side.
  */
-import { balanceCents, MAX_SESSION_MINUTES, sessionWalletCredits } from './economy';
+import { balanceCents, MAX_SESSION_MINUTES, rewardBalance, sessionWalletCredits } from './economy';
 import { formatAmount } from './format';
 import { dayKey, isValidDayKey } from './dates';
 import { createId } from './ids';
@@ -329,17 +329,42 @@ export function commitTimer(data: AppData, input: CommitTimerInput, ctx: Ctx): R
 // Shop
 // ---------------------------------------------------------------------------
 
-export function purchaseReward(data: AppData, rewardId: string, { now }: Ctx): Result<AppData> {
+/**
+ * Default split for a reward payable from both accounts: Kreativ-Credits first
+ * (they can only be spent on creative-related rewards), the rest from SC.
+ */
+export function defaultCreativeShare(data: AppData, reward: Reward): number {
+  if (reward.wallet === 'main') return 0;
+  if (reward.wallet === 'creative') return reward.priceCents;
+  return Math.min(reward.priceCents, Math.max(0, balanceCents(data.transactions, 'creative')));
+}
+
+/**
+ * Unlock a reward. For rewards payable from both accounts, `creativeCents`
+ * decides how much of the price is paid with Kreativ-Credits.
+ */
+export function purchaseReward(data: AppData, rewardId: string, { now }: Ctx, creativeCents?: number): Result<AppData> {
   const reward = data.rewards.find((r) => r.id === rewardId);
   if (!reward || reward.archived) return fail('Diese Belohnung ist nicht verfügbar.');
   if (reward.preOwned) return fail('Diesen Artikel besitzt du bereits.');
   if (activePurchaseFor(data, rewardId)) return fail('Diese Belohnung ist bereits freigeschaltet.');
-  const balance = balanceCents(data.transactions, reward.wallet);
-  if (balance < reward.priceCents) {
-    return fail(`Nicht genug Credits. Es fehlen noch ${formatAmount(reward.priceCents - balance, reward.wallet)}.`);
+  const available = rewardBalance(data.transactions, reward.wallet);
+  if (available < reward.priceCents) {
+    return fail(`Nicht genug Credits. Es fehlen noch ${formatAmount(reward.priceCents - available, reward.wallet)}.`);
   }
+  const fromCreative = reward.wallet === 'both' ? (creativeCents ?? defaultCreativeShare(data, reward)) : defaultCreativeShare(data, reward);
+  const fromMain = reward.priceCents - fromCreative;
+  if (!Number.isInteger(fromCreative) || fromCreative < 0 || fromMain < 0) return fail('Ungültige Aufteilung.');
+  if (fromCreative > balanceCents(data.transactions, 'creative')) return fail('So viele Kreativ-Credits hast du nicht.');
+  if (fromMain > balanceCents(data.transactions, 'main')) return fail('So viele Setup Credits hast du nicht.');
+
   const purchaseId = createId('pur');
   const iso = now.toISOString();
+  const note = `Freigeschaltet: ${reward.name}`;
+  const bookings = [
+    fromMain > 0 ? txn('purchase', -fromMain, now, { purchaseId, rewardId }, note, 'main') : null,
+    fromCreative > 0 ? txn('purchase', -fromCreative, now, { purchaseId, rewardId }, note, 'creative') : null,
+  ].filter((t): t is CreditTransaction => t !== null);
   return ok({
     ...data,
     purchases: [
@@ -349,32 +374,34 @@ export function purchaseReward(data: AppData, rewardId: string, { now }: Ctx): R
         rewardId,
         rewardName: reward.name,
         wallet: reward.wallet,
+        creativeCents: fromCreative,
         priceCents: reward.priceCents,
         unlockedAt: iso,
         realPurchasedAt: null,
         refundedAt: null,
       },
     ],
-    transactions: [
-      ...data.transactions,
-      txn('purchase', -reward.priceCents, now, { purchaseId, rewardId }, `Freigeschaltet: ${reward.name}`, reward.wallet),
-    ],
+    transactions: [...data.transactions, ...bookings],
   });
 }
 
-/** Reverse an unlock: refund exactly the price that was paid. */
+/** Reverse an unlock: refund exactly what was paid, to the account it came from. */
 export function refundPurchase(data: AppData, purchaseId: string, { now }: Ctx): Result<AppData> {
   const purchase = data.purchases.find((p) => p.id === purchaseId);
   if (!purchase) return fail('Freischaltung nicht gefunden.');
   if (purchase.refundedAt) return fail('Diese Freischaltung wurde bereits rückgängig gemacht.');
   const iso = now.toISOString();
+  const refs = { purchaseId, rewardId: purchase.rewardId };
+  const note = `Rückgängig: ${purchase.rewardName}`;
+  const fromMain = purchase.priceCents - purchase.creativeCents;
+  const bookings = [
+    fromMain > 0 ? txn('refund', fromMain, now, refs, note, 'main') : null,
+    purchase.creativeCents > 0 ? txn('refund', purchase.creativeCents, now, refs, note, 'creative') : null,
+  ].filter((t): t is CreditTransaction => t !== null);
   return ok({
     ...data,
     purchases: data.purchases.map((p) => (p.id === purchaseId ? { ...p, refundedAt: iso } : p)),
-    transactions: [
-      ...data.transactions,
-      txn('refund', purchase.priceCents, now, { purchaseId, rewardId: purchase.rewardId }, `Rückgängig: ${purchase.rewardName}`, purchase.wallet),
-    ],
+    transactions: [...data.transactions, ...bookings],
   });
 }
 
@@ -494,7 +521,7 @@ export function restoreDefaultShop(data: AppData, { now }: Ctx): Result<AppData>
 }
 
 export function setGoalReward(data: AppData, rewardId: string | null): Result<AppData> {
-  if (rewardId && !data.rewards.some((r) => r.id === rewardId && !r.archived && !r.preOwned && r.wallet === 'main')) {
+  if (rewardId && !data.rewards.some((r) => r.id === rewardId && !r.archived && !r.preOwned && r.wallet !== 'creative')) {
     return fail('Diese Belohnung kann nicht als Ziel gewählt werden.');
   }
   return ok({ ...data, settings: { ...data.settings, goalRewardId: rewardId } });

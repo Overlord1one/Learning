@@ -51,7 +51,7 @@ export function RewardCard({ item, isGoal, index, onOpen, onUnlock }: Props) {
         {reward.variant && <p className="mt-0.5 text-[13px] text-muted">{reward.variant}</p>}
 
         <div className="mt-4 flex items-center gap-1.5">
-          <WalletCoin wallet={reward.wallet} />
+          <WalletCoin wallet={reward.wallet} className="size-4" />
           <span className="tabular text-lg font-semibold text-fg">{formatAmount(reward.priceCents, reward.wallet)}</span>
           <span className="ml-auto text-xs text-faint">≈ {formatHoursPrecise(item.minutesFromZero)} {reward.wallet === 'creative' ? 'Schnitt' : 'Lernzeit'}</span>
         </div>

@@ -10,7 +10,9 @@ export const formatCredits = (cents: number) => creditFmt.format(cents / CENTS_P
 export const formatSC = (cents: number) => `${formatCredits(cents)} SC`;
 /** Kreativ-Credits: 1200 → "12 KC" */
 export const formatKC = (cents: number) => `${formatCredits(cents)} KC`;
-export const formatAmount = (cents: number, wallet: 'main' | 'creative') => (wallet === 'main' ? formatSC(cents) : formatKC(cents));
+/** Amount in the currency of an account; rewards payable from both show „SC/KC“. */
+export const formatAmount = (cents: number, wallet: 'main' | 'creative' | 'both') =>
+  wallet === 'main' ? formatSC(cents) : wallet === 'creative' ? formatKC(cents) : `${formatCredits(cents)} SC/KC`;
 export const formatInt = (n: number) => intFmt.format(n);
 export const formatDecimal = (n: number) => oneDecimalFmt.format(n);
 export const formatEuro = (cents: number) => euroFmt.format(cents / 100);

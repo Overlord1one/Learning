@@ -7,7 +7,7 @@ import { useAppStore } from '../../store/appStore';
 import type { SessionCelebration, UnlockCelebration } from '../../store/appStore';
 import { levelProgress } from '../../domain/economy';
 import { rankForLevel } from '../../domain/ranks';
-import { formatAmount, formatCredits, formatInt, formatSC } from '../../domain/format';
+import { formatCredits, formatInt, formatKC, formatSC } from '../../domain/format';
 import { useReducedMotion } from '../../store/hooks';
 import { AnimatedNumber, ProgressBar } from '../ui/progress';
 import { Button } from '../ui/primitives';
@@ -265,10 +265,14 @@ function UnlockSummary({ c, onClose }: { c: UnlockCelebration; onClose: () => vo
       </motion.h2>
       <p className="relative mt-1 text-sm text-muted">{c.reward.variant || c.reward.category}</p>
       <div className="relative mt-5 flex items-center justify-center gap-4 text-sm">
-        <span className="tabular font-medium text-gold">−{formatAmount(c.priceCents, c.reward.wallet)}</span>
+        <span className="tabular font-medium text-gold">
+          {c.priceCents - c.creativePaid > 0 && `−${formatSC(c.priceCents - c.creativePaid)}`}
+          {c.priceCents - c.creativePaid > 0 && c.creativePaid > 0 && ' · '}
+          {c.creativePaid > 0 && <span className="text-creative">−{formatKC(c.creativePaid)}</span>}
+        </span>
         <span className="h-3.5 w-px bg-line" />
         <span className="text-muted">
-          Neues Guthaben <span className="tabular font-medium text-fg">{formatAmount(c.balanceAfter, c.reward.wallet)}</span>
+          Neues Guthaben <span className="tabular font-medium text-fg">{c.reward.wallet === 'creative' ? formatKC(c.creativeAfter) : formatSC(c.balanceAfter)}</span>
         </span>
       </div>
       <p className="relative mx-auto mt-5 max-w-xs text-[13px] leading-relaxed text-faint">

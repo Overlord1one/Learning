@@ -17,7 +17,7 @@ import {
 import type { RangeKey } from '../domain/stats';
 import { dayKey, parseDayKey } from '../domain/dates';
 import { earnedCents, levelForXp, spentCents } from '../domain/economy';
-import { formatDate, formatDecimal, formatHours, formatHoursPrecise, formatInt, formatMinutes, formatSC, formatShortDate } from '../domain/format';
+import { formatAmount, formatDate, formatDecimal, formatHours, formatHoursPrecise, formatInt, formatMinutes, formatSC, formatShortDate } from '../domain/format';
 import { Card, CardTitle, PageHeader, Segmented, Select } from '../components/ui/primitives';
 import { ProgressBar } from '../components/ui/progress';
 import { StatCard } from '../components/StatCard';
@@ -250,10 +250,10 @@ export function ProgressPage() {
 function ProjectionCard() {
   const data = useData();
   const player = usePlayer();
-  const rewards = useMemo(() => shopRewards(data).map((r) => rewardProgress(data, r, player.balanceCents)).filter((r) => r.status !== 'freigeschaltet'), [data, player.balanceCents]);
+  const rewards = useMemo(() => shopRewards(data).map((r) => rewardProgress(data, r)).filter((r) => r.status !== 'freigeschaltet'), [data, player.balanceCents]);
   const [selected, setSelected] = useState<string>(data.settings.goalRewardId ?? rewards[0]?.reward.id ?? '');
   const item = rewards.find((r) => r.reward.id === selected) ?? rewards[0];
-  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.missingCents, new Date()) : null), [data.sessions, item]);
+  const projection = useMemo(() => (item ? projectCompletion(data.sessions, item.missingCents, new Date(), item.reward.wallet) : null), [data.sessions, item]);
 
   return (
     <Card className="mt-5">
@@ -280,8 +280,8 @@ function ProjectionCard() {
           <dl className="grid grid-cols-2 gap-3">
             {[
               ['Aktuelles Guthaben', formatSC(player.balanceCents)],
-              ['Preis', formatSC(item.reward.priceCents)],
-              ['Fehlende Credits', formatSC(item.missingCents)],
+              ['Preis', formatAmount(item.reward.priceCents, item.reward.wallet)],
+              ['Fehlende Credits', formatAmount(item.missingCents, item.reward.wallet)],
               ['Benötigte Lernzeit', item.minutesNeeded > 0 ? formatHoursPrecise(item.minutesNeeded) : '—'],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl border border-line-soft bg-[#111418] px-3.5 py-3">

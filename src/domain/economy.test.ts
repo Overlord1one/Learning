@@ -14,9 +14,10 @@ import {
   updateSettings,
   resolveTimerAway,
   renameCategory,
+  defaultCreativeShare,
 } from './commands';
 import { balanceCents, creditsForMinutes, levelForXp, levelProgress, minutesToEarn, totalXp, xpForMinutes } from './economy';
-import { goalReward, playerSnapshot, projectCompletion, rewardProgress, studyStats, weeklyPlan } from './stats';
+import { goalReward, playerSnapshot, projectCompletion, rewardProgress, shopRewards, studyStats, weeklyPlan } from './stats';
 import { evaluateAchievements } from './achievements';
 import { migrate, validateAppData } from './schema';
 import { rankForLevel, DEFAULT_RANKS } from './ranks';
@@ -106,7 +107,7 @@ describe('acceptance', () => {
     expect(data.sessions).toHaveLength(0);
     expect(data.transactions).toHaveLength(0);
     const shop = data.rewards.filter((r) => !r.preOwned);
-    expect(shop).toHaveLength(7); // 5 original + Divine + editing monitor
+    expect(shop).toHaveLength(8); // 5 original + Divine + PodMic + editing monitor
     expect(shop.every((r) => rewardProgress(data, r).status === 'gesperrt')).toBe(true);
     const original = shop.filter((r) => ['rw-mousepad', 'rw-mx-master', 'rw-lofree-flow', 'rw-dt900', 'rw-flexispot'].includes(r.id));
     expect(original.reduce((a, r) => a + r.priceCents, 0)).toBe(455000);
@@ -393,7 +394,7 @@ describe('migration v1 → v2', () => {
     raw.sessions[0].categoryId = 'cat-mathe';
     raw.transactions[0].sessionId = raw.sessions[0].id;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(8);
+    expect(migrated.schemaVersion).toBe(9);
     expect(migrated.categories.map((c) => c.id)).toContain('cat-digitalrechner');
     expect(migrated.categories.map((c) => c.id)).toContain('cat-video');
     expect(migrated.sessions[0]!.weightPercent).toBe(150);
@@ -447,7 +448,7 @@ describe('school-hour weighting (v4)', () => {
     raw.rewards.find((r: { id: string }) => r.id === 'rw-mousepad').priceCents = 25000;
     raw.rewards.find((r: { id: string }) => r.id === 'rw-dt900').priceCents = 12345; // customised
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(8);
+    expect(migrated.schemaVersion).toBe(9);
     expect(migrated.categories.find((c) => c.id === 'cat-mathe')!.weightPercent).toBe(150);
     expect(migrated.categories.every((c) => c.weeklyTargetMinutes === 0)).toBe(true);
     expect(migrated.sessions[0]!.weightPercent).toBe(150);
@@ -482,7 +483,7 @@ describe('lectures as a small bonus (v6)', () => {
     raw.sessions[0].weightPercent = oldWeight;
     raw.transactions[0].amountCents = oldCents;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(8);
+    expect(migrated.schemaVersion).toBe(9);
     expect(migrated.categories.find((c) => c.id === 'cat-vorlesungen')!.weightPercent).toBe(18.75);
     expect(migrated.sessions[0]!.weightPercent).toBe(18.75);
     expect(balanceCents(migrated.transactions)).toBe(450 + 2400); // at 16 SC/h
@@ -576,7 +577,7 @@ describe('Kreativ-Konto (v8)', () => {
     raw.rewards = raw.rewards.filter((r: { id: string }) => !['rw-divine', 'rw-schnitt-monitor'].includes(r.id)).map(({ wallet, ...r }: { wallet: string }) => r);
     delete raw.settings.rates.creativeCentsPerHour;
     const migrated = unwrap(validateAppData(migrate(raw)));
-    expect(migrated.schemaVersion).toBe(8);
+    expect(migrated.schemaVersion).toBe(9);
     expect(balanceCents(migrated.transactions, 'creative')).toBe(2400); // 90 min × 16 KC/h
     expect(balanceCents(migrated.transactions)).toBe(1200 + 2400);
     expect(migrated.rewards.some((r) => r.id === 'rw-divine')).toBe(true);
@@ -592,5 +593,56 @@ describe('learning achievements ignore creative subjects', () => {
     expect(unlocked()).toEqual([]);
     data = unwrap(addSession(data, { categoryId: 'cat-mathe', minutes: 120, date: '2026-10-13', source: 'manual' }, ctx)).data;
     expect(unlocked()).toEqual(expect.arrayContaining(['erster-schritt', 'deep-work']));
+  });
+});
+
+describe('rewards payable from both accounts (v9)', () => {
+  const add = (data: AppData, categoryId: string, minutes: number, date = '2026-10-13') =>
+    unwrap(addSession(data, { categoryId, minutes, date, source: 'manual' }, ctx)).data;
+  // 25 h math → 600 SC, 25 h video → 200 SC + 400 KC
+  function funded() {
+    let data = createInitialData(NOW);
+    for (let d = 0; d < 5; d++) {
+      data = add(data, 'cat-mathe', 300, shiftDayKey('2026-10-13', -d));
+      data = add(data, 'cat-video', 300, shiftDayKey('2026-10-13', -d));
+    }
+    return data;
+  }
+
+  it('the Rode PodMic USB can be paid with SC and KC combined', () => {
+    let data = funded();
+    const mic = data.rewards.find((r) => r.id === 'rw-podmic-usb')!;
+    expect(mic.wallet).toBe('both');
+    expect(rewardProgress(data, mic).status).toBe('freischaltbar'); // 800 SC + 400 KC ≥ 800
+    expect(shopRewards(data, 'main').some((r) => r.id === mic.id)).toBe(true);
+    expect(shopRewards(data, 'creative').some((r) => r.id === mic.id)).toBe(true);
+    const before = playerSnapshot(data);
+    data = unwrap(purchaseReward(data, mic.id, ctx, 30000)); // 300 KC + 500 SC
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: before.balanceCents - 50000, creativeCents: before.creativeCents - 30000 });
+    expect(data.purchases[0]).toMatchObject({ wallet: 'both', creativeCents: 30000, priceCents: 80000 });
+    expect(validateAppData(JSON.parse(JSON.stringify(data))).ok).toBe(true);
+    data = unwrap(refundPurchase(data, data.purchases[0]!.id, ctx));
+    expect(playerSnapshot(data)).toMatchObject({ balanceCents: before.balanceCents, creativeCents: before.creativeCents });
+  });
+
+  it('uses KC first by default and rejects impossible splits', () => {
+    const data = funded();
+    expect(defaultCreativeShare(data, data.rewards.find((r) => r.id === 'rw-podmic-usb')!)).toBe(40000);
+    expect(purchaseReward(data, 'rw-podmic-usb', ctx, 50000).ok).toBe(false); // only 400 KC available
+    const paid = unwrap(purchaseReward(data, 'rw-podmic-usb', ctx));
+    expect(paid.purchases[0]!.creativeCents).toBe(40000);
+  });
+
+  it('migrates v8 purchases with their KC share', () => {
+    let current = createInitialData(NOW);
+    for (let d = 0; d < 8; d++) current = add(current, 'cat-video', 600, shiftDayKey('2026-10-12', -d));
+    current = unwrap(purchaseReward(current, 'rw-schnitt-monitor', ctx));
+    const raw = JSON.parse(JSON.stringify(current));
+    raw.schemaVersion = 8;
+    delete raw.purchases[0].creativeCents;
+    raw.rewards = raw.rewards.filter((r: { id: string }) => r.id !== 'rw-podmic-usb');
+    const migrated = unwrap(validateAppData(migrate(raw)));
+    expect(migrated.purchases[0]!.creativeCents).toBe(120000);
+    expect(migrated.rewards.find((r) => r.id === 'rw-podmic-usb')?.wallet).toBe('both');
   });
 });

@@ -114,7 +114,7 @@ export function RewardDetailDialog({ reward, onClose, onUnlock, onEdit }: Props)
                 </Button>
               )}
               {(item.status === 'gesperrt' || item.status === 'freischaltbar') &&
-                live.wallet === 'main' &&
+                live.wallet !== 'creative' &&
                 (data.settings.goalRewardId === live.id ? (
                   <Badge tone="accent" icon={Crosshair} className="h-10 rounded-xl px-3 text-sm">
                     Aktuelles Ziel

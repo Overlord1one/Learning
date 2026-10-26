@@ -10,13 +10,16 @@
 export type ISODateTime = string; // 2026-10-13T08:15:00.000Z
 export type DayKey = string; // 2026-10-13 (local calendar day)
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /**
  * Two separate accounts: Setup Credits (SC) for the desk setup and Kreativ-Credits
  * (KC) that only creative subjects (video editing) earn, for creative equipment.
  */
 export type Wallet = 'main' | 'creative';
+
+/** How a reward can be paid: from one account, or from both combined (SC + KC). */
+export type RewardWallet = Wallet | 'both';
 
 /** Rates that were valid when a session was recorded. Locked per session. */
 export interface RateSnapshot {
@@ -105,6 +108,7 @@ export type RewardIcon =
   | 'lamp'
   | 'chair'
   | 'speaker'
+  | 'mic'
   | 'gift';
 
 export interface Reward {
@@ -122,8 +126,8 @@ export interface Reward {
   realPriceEuroCents: number | null;
   productUrl: string;
   priority: RewardPriority;
-  /** Which account pays for it: Setup Credits or Kreativ-Credits. */
-  wallet: Wallet;
+  /** Which account pays for it: Setup Credits, Kreativ-Credits or both combined. */
+  wallet: RewardWallet;
   /** Part of the original five-item shop. */
   isDefault: boolean;
   /** Already owned before using the app – shown in inventory, not purchasable. */
@@ -139,8 +143,10 @@ export interface RewardPurchase {
   rewardId: string;
   /** Snapshot of the reward name at unlock time for traceability. */
   rewardName: string;
-  /** Account the price was paid from. */
-  wallet: Wallet;
+  /** Account(s) the price was paid from. */
+  wallet: RewardWallet;
+  /** Part of the price paid with Kreativ-Credits (the rest was Setup Credits). */
+  creativeCents: number;
   /** Price paid at unlock time. Never changes afterwards. */
   priceCents: number;
   unlockedAt: ISODateTime;

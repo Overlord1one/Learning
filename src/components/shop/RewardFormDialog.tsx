@@ -7,7 +7,7 @@ import { useAppStore } from '../../store/appStore';
 import { useData } from '../../store/hooks';
 import { minutesToEarn } from '../../domain/economy';
 import { formatCredits, formatHoursPrecise, parseCreditsInput, parseDecimal } from '../../domain/format';
-import type { Reward, RewardIcon, RewardPriority, Wallet } from '../../domain/types';
+import type { Reward, RewardIcon, RewardPriority, RewardWallet, Wallet } from '../../domain/types';
 import { fileToCompressedDataUrl } from '../../lib/image';
 
 interface Props {
@@ -37,7 +37,7 @@ export function RewardFormDialog({ open, onClose, reward, onSaved, defaultWallet
   const [productUrl, setProductUrl] = useState('');
   const [priority, setPriority] = useState<RewardPriority>('mittel');
   const [preOwned, setPreOwned] = useState(false);
-  const [wallet, setWallet] = useState<Wallet>(defaultWallet);
+  const [wallet, setWallet] = useState<RewardWallet>(defaultWallet);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -150,23 +150,28 @@ export function RewardFormDialog({ open, onClose, reward, onSaved, defaultWallet
         </Field>
         <div className="flex flex-col gap-1.5 sm:col-span-2">
           <span className="text-[13px] font-medium text-muted">Konto</span>
-          <Segmented<Wallet>
+          <Segmented<RewardWallet>
             label="Konto"
             value={wallet}
             onChange={setWallet}
             options={[
-              { value: 'main', label: 'Setup Credits (SC)' },
-              { value: 'creative', label: 'Kreativ-Credits (KC)' },
+              { value: 'main', label: 'SC' },
+              { value: 'creative', label: 'KC' },
+              { value: 'both', label: 'Beide' },
             ]}
           />
           <p className="text-xs text-faint">
-            {wallet === 'main' ? 'Wird mit allen Lern-Credits freigeschaltet.' : 'Nur mit Kreativ-Credits aus dem Video-Schnitt freischaltbar – für Kreativ-Equipment.'}
+            {wallet === 'main'
+              ? 'Setup Credits – wird mit allen Lern-Credits freigeschaltet.'
+              : wallet === 'creative'
+                ? 'Kreativ-Credits – nur mit Credits aus dem Video-Schnitt freischaltbar, für Kreativ-Equipment.'
+                : 'Beide Konten – du bezahlst mit SC, KC oder einer Mischung. Für Dinge, die du für Lernen und Kreatives brauchst.'}
           </p>
         </div>
         <Field
-          label={`Virtueller Preis (${wallet === 'main' ? 'SC' : 'KC'})`}
+          label={`Virtueller Preis (${wallet === 'main' ? 'SC' : wallet === 'creative' ? 'KC' : 'SC/KC'})`}
           htmlFor="rw-price"
-          hint={hours > 0 ? `≈ ${formatHoursPrecise(hours)} ${wallet === 'main' ? 'Lernzeit' : 'Video-Schnitt'} ab null` : preOwned ? 'Für vorhandene Artikel optional' : undefined}
+          hint={hours > 0 ? `≈ ${formatHoursPrecise(hours)} ${wallet === 'creative' ? 'Video-Schnitt' : 'Lernzeit'} ab null` : preOwned ? 'Für vorhandene Artikel optional' : undefined}
         >
           <Input id="rw-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="z. B. 120" />
         </Field>

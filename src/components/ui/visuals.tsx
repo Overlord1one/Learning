@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Armchair, Gift, Lamp, Monitor, Speaker } from 'lucide-react';
+import { Armchair, Gift, Lamp, Mic, Monitor, Speaker } from 'lucide-react';
 import type { Reward, RewardIcon } from '../../domain/types';
 import { cn } from '../../lib/cn';
 
@@ -32,7 +32,15 @@ export function CreativeCoin({ className }: { className?: string }) {
 }
 
 /** Coin for an account. */
-export function WalletCoin({ wallet, className }: { wallet: 'main' | 'creative'; className?: string }) {
+export function WalletCoin({ wallet, className }: { wallet: 'main' | 'creative' | 'both'; className?: string }) {
+  if (wallet === 'both') {
+    return (
+      <span className={cn('relative inline-flex shrink-0', className)} aria-hidden>
+        <CreditCoin className="size-full" />
+        <CreativeCoin className="-ml-1.5 size-full ring-2 ring-card rounded-full" />
+      </span>
+    );
+  }
   return wallet === 'main' ? <CreditCoin className={className} /> : <CreativeCoin className={className} />;
 }
 
@@ -95,7 +103,7 @@ function Illustration({ icon }: { icon: RewardIcon }) {
         </svg>
       );
     default: {
-      const Icon = { monitor: Monitor, lamp: Lamp, chair: Armchair, speaker: Speaker, gift: Gift }[icon] ?? Gift;
+      const Icon = { monitor: Monitor, lamp: Lamp, chair: Armchair, speaker: Speaker, mic: Mic, gift: Gift }[icon] ?? Gift;
       return <Icon className="h-3/5 w-3/5" strokeWidth={1.2} />;
     }
   }
@@ -141,4 +149,5 @@ export const REWARD_ICON_OPTIONS: { value: RewardIcon; label: string }[] = [
   { value: 'lamp', label: 'Lampe' },
   { value: 'chair', label: 'Stuhl' },
   { value: 'speaker', label: 'Lautsprecher' },
+  { value: 'mic', label: 'Mikrofon' },
 ];

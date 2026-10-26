@@ -30,7 +30,11 @@ export interface UnlockCelebration {
   kind: 'unlock';
   reward: Reward;
   priceCents: number;
+  /** Balances after the unlock. */
   balanceAfter: number;
+  creativeAfter: number;
+  /** Part of the price paid with Kreativ-Credits. */
+  creativePaid: number;
   achievements: AchievementDef[];
 }
 
@@ -64,7 +68,7 @@ interface AppState {
   discardTimer: () => void;
   finishTimer: (input: cmd.CommitTimerInput) => Result<StudySession>;
   // Shop
-  purchase: (rewardId: string) => Result<void>;
+  purchase: (rewardId: string, creativeCents?: number) => Result<void>;
   refund: (purchaseId: string) => Result<void>;
   setRealPurchased: (purchaseId: string, bought: boolean) => Result<void>;
   addReward: (input: cmd.RewardInput) => Result<Reward>;
@@ -144,6 +148,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         affordable: [
           ...newlyAffordable(data, before.balanceCents, after.balanceCents),
           ...newlyAffordable(data, before.creativeCents, after.creativeCents, 'creative'),
+          ...newlyAffordable(data, before.balanceCents + before.creativeCents, after.balanceCents + after.creativeCents, 'both'),
         ],
         achievements,
       },
@@ -184,9 +189,9 @@ export const useAppStore = create<AppState>()((set, get) => {
       return celebrateSession(prev, result.value);
     },
 
-    purchase(rewardId) {
+    purchase(rewardId, creativeCents) {
       const prev = get().data;
-      const result = cmd.purchaseReward(prev, rewardId, { now: now() });
+      const result = cmd.purchaseReward(prev, rewardId, { now: now() }, creativeCents);
       if (!result.ok) return result;
       const at = now();
       const achievements = freshAchievements(result.value, at);
@@ -198,7 +203,9 @@ export const useAppStore = create<AppState>()((set, get) => {
           kind: 'unlock',
           reward,
           priceCents: reward.priceCents,
-          balanceAfter: balanceCents(data.transactions, reward.wallet),
+          balanceAfter: balanceCents(data.transactions, 'main'),
+          creativeAfter: balanceCents(data.transactions, 'creative'),
+          creativePaid: data.purchases.find((p) => p.rewardId === rewardId && p.refundedAt === null)?.creativeCents ?? 0,
           achievements,
         },
       });

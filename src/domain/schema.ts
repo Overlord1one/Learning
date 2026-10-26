@@ -25,6 +25,7 @@ const weight = z.number().min(10).max(300).refine((v) => Number.isInteger(v * 4)
 
 const rates = z.object({ creditCentsPerHour: int.min(1), xpPerHour: int.min(1), creativeCentsPerHour: int.min(0) });
 const wallet = z.enum(['main', 'creative']);
+const rewardWallet = z.enum(['main', 'creative', 'both']);
 
 const schema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
@@ -86,13 +87,13 @@ const schema = z.object({
       description: z.string(),
       category: z.string(),
       variant: z.string(),
-      icon: z.enum(['mousepad', 'mouse', 'keyboard', 'headphones', 'desk', 'monitor', 'lamp', 'chair', 'speaker', 'gift']),
+      icon: z.enum(['mousepad', 'mouse', 'keyboard', 'headphones', 'desk', 'monitor', 'lamp', 'chair', 'speaker', 'mic', 'gift']),
       imageUrl: z.string(),
       priceCents: int.min(0),
       realPriceEuroCents: int.min(0).nullable(),
       productUrl: z.string(),
       priority: z.enum(['niedrig', 'mittel', 'hoch']),
-      wallet,
+      wallet: rewardWallet,
       isDefault: z.boolean(),
       preOwned: z.boolean(),
       archived: z.boolean(),
@@ -105,7 +106,8 @@ const schema = z.object({
       id: z.string(),
       rewardId: z.string(),
       rewardName: z.string(),
-      wallet,
+      wallet: rewardWallet,
+      creativeCents: int.min(0),
       priceCents: int.min(0),
       unlockedAt: iso,
       realPurchasedAt: iso.nullable(),
@@ -163,6 +165,7 @@ export function validateAppData(input: unknown): Result<AppData> {
   const rewardIds = new Set(data.rewards.map((r) => r.id));
   for (const p of data.purchases) {
     if (!rewardIds.has(p.rewardId)) return fail('Ungültige Datei: Freischaltung ohne zugehörige Belohnung.');
+    if (p.creativeCents > p.priceCents) return fail('Ungültige Datei: Freischaltung mit fehlerhafter Aufteilung.');
   }
   const activePerReward = new Map<string, number>();
   for (const p of data.purchases) {
@@ -188,6 +191,7 @@ export function migrate(raw: unknown): unknown {
   if (isRecord(data) && data.schemaVersion === 5) data = changeDefaultWeight(data, 'cat-vorlesungen', 37.5, 18.75, 6);
   if (isRecord(data) && data.schemaVersion === 6) data = migrateV6toV7(data);
   if (isRecord(data) && data.schemaVersion === 7) data = migrateV7toV8(data);
+  if (isRecord(data) && data.schemaVersion === 8) data = migrateV8toV9(data);
   return data;
 }
 
@@ -295,6 +299,25 @@ function withMainWallet(raw: Record<string, unknown>): Record<string, unknown> {
   const data = structuredClone(raw) as Record<string, any>;
   if (Array.isArray(data.transactions)) data.transactions = data.transactions.map((t: object) => ({ wallet: 'main', ...t }));
   if (Array.isArray(data.purchases)) data.purchases = data.purchases.map((p: object) => ({ wallet: 'main', ...p }));
+  return data;
+}
+
+/** v9: rewards payable from both accounts (Rode PodMic USB); purchases record their KC share. */
+function migrateV8toV9(raw: Record<string, unknown>): unknown {
+  const data = structuredClone(raw) as Record<string, any>;
+  if (Array.isArray(data.purchases)) {
+    data.purchases = data.purchases.map((p: { wallet: string; priceCents: number; creativeCents?: number }) => ({
+      ...p,
+      creativeCents: p.creativeCents ?? (p.wallet === 'creative' ? p.priceCents : 0),
+    }));
+  }
+  if (Array.isArray(data.rewards)) {
+    const now = new Date().toISOString();
+    for (const seed of DEFAULT_REWARDS) {
+      if (!data.rewards.some((r: { id: string }) => r.id === seed.id)) data.rewards.push({ ...seed, createdAt: now });
+    }
+  }
+  data.schemaVersion = 9;
   return data;
 }
 

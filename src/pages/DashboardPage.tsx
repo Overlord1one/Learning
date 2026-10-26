@@ -4,7 +4,8 @@ import { motion } from 'motion/react';
 import { ArrowRight, Clock, Crosshair, Flame, Gauge, PenLine, Play, ShoppingBag, Sparkles, Star, Target, Zap } from 'lucide-react';
 import { useData, usePlayer, useStudyStats } from '../store/hooks';
 import { goalReward, projectCompletion, rewardProgress } from '../domain/stats';
-import { formatDecimal, formatHours, formatHoursPrecise, formatInt, formatLongDate, formatMinutes, formatSC, formatCredits } from '../domain/format';
+import { formatDecimal, formatHours, formatHoursPrecise, formatInt, formatLongDate, formatMinutes, formatCredits, formatAmount } from '../domain/format';
+import { rewardBalance } from '../domain/economy';
 import { Badge, Button, Card, CardTitle, EmptyState } from '../components/ui/primitives';
 import { AnimatedNumber, ProgressBar, Ring } from '../components/ui/progress';
 import { CreditCoin, ProductVisual } from '../components/ui/visuals';
@@ -29,10 +30,10 @@ function LevelAvatar({ level, ratio }: { level: number; ratio: number }) {
 function GoalCard() {
   const data = useData();
   const navigate = useNavigate();
-  const player = usePlayer();
   const [picker, setPicker] = useState(false);
   const goal = goalReward(data);
-  const progress = goal ? rewardProgress(data, goal, player.balanceCents) : null;
+  const progress = goal ? rewardProgress(data, goal) : null;
+  const available = goal ? rewardBalance(data.transactions, goal.wallet) : 0;
   const projection = useMemo(
     () => (progress ? projectCompletion(data.sessions, progress.missingCents, new Date()) : null),
     [data.sessions, progress],
@@ -73,8 +74,8 @@ function GoalCard() {
             <div className="mb-2 flex items-end justify-between gap-2">
               <span className="flex items-center gap-1.5 text-sm">
                 <CreditCoin className="size-3.5" />
-                <span className="tabular font-semibold text-fg">{formatCredits(Math.min(player.balanceCents, goal.priceCents))}</span>
-                <span className="tabular text-muted">/ {formatSC(goal.priceCents)}</span>
+                <span className="tabular font-semibold text-fg">{formatCredits(Math.min(available, goal.priceCents))}</span>
+                <span className="tabular text-muted">/ {formatAmount(goal.priceCents, goal.wallet)}</span>
               </span>
               <span className="tabular text-2xl font-semibold tracking-[-0.02em] text-fg">
                 <AnimatedNumber value={Math.floor(progress.ratio * 100)} format={(v) => `${Math.round(v)} %`} />
@@ -86,7 +87,7 @@ function GoalCard() {
           <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-line-soft bg-[#111418] px-3.5 py-3">
               <dt className="text-[11.5px] text-faint">Fehlende Credits</dt>
-              <dd className="tabular mt-0.5 text-[15px] font-semibold text-fg">{formatSC(progress.missingCents)}</dd>
+              <dd className="tabular mt-0.5 text-[15px] font-semibold text-fg">{formatAmount(progress.missingCents, goal.wallet)}</dd>
             </div>
             <div className="rounded-xl border border-line-soft bg-[#111418] px-3.5 py-3">
               <dt className="text-[11.5px] text-faint">Noch lernen</dt>

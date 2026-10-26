@@ -5,7 +5,7 @@ import { ProductVisual } from '../ui/visuals';
 import { useAppStore } from '../../store/appStore';
 import { useData } from '../../store/hooks';
 import { rewardProgress, shopRewards } from '../../domain/stats';
-import { formatHoursPrecise, formatSC } from '../../domain/format';
+import { formatAmount, formatHoursPrecise } from '../../domain/format';
 import { cn } from '../../lib/cn';
 
 export function GoalPickerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -37,7 +37,7 @@ export function GoalPickerDialog({ open, onClose }: { open: boolean; onClose: ()
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-fg">{reward.name}</p>
                   <p className="tabular text-xs text-muted">
-                    {formatSC(reward.priceCents)} · {Math.round(ratio * 100)} % · {minutesNeeded > 0 ? `noch ${formatHoursPrecise(minutesNeeded)}` : 'Freischaltbar'}
+                    {formatAmount(reward.priceCents, reward.wallet)} · {Math.round(ratio * 100)} % · {minutesNeeded > 0 ? `noch ${formatHoursPrecise(minutesNeeded)}` : 'Freischaltbar'}
                   </p>
                 </div>
                 {active && <Check className="size-4 text-accent" aria-label="Aktuelles Ziel" />}

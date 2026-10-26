@@ -1,4 +1,4 @@
-import type { CreditTransaction, RateSnapshot, StudySession, Wallet } from './types';
+import type { CreditTransaction, RateSnapshot, RewardWallet, StudySession, Wallet } from './types';
 
 export const CENTS_PER_CREDIT = 100;
 /** XP needed for level 2. Every further level needs 300 XP more than the previous one. */
@@ -59,6 +59,11 @@ export function totalXp(sessions: readonly StudySession[]): number {
 }
 
 /** Credits earned through studying (net of edits / deletions). */
+/** Spendable credits for a reward: one account, or SC + KC combined. */
+export function rewardBalance(transactions: readonly CreditTransaction[], wallet: RewardWallet): number {
+  return wallet === 'both' ? balanceCents(transactions, 'main') + balanceCents(transactions, 'creative') : balanceCents(transactions, wallet);
+}
+
 export function earnedCents(transactions: readonly CreditTransaction[], wallet: Wallet = 'main'): number {
   let sum = 0;
   for (const t of transactions) {
@@ -84,11 +89,12 @@ export function spentCents(transactions: readonly CreditTransaction[], wallet: W
  * Minutes of focused study still needed to earn `missingCents` at the
  * given rate. Rounded up – you can't earn a fraction of a minute.
  */
-export function minutesToEarn(missingCents: number, rates: RateSnapshot, wallet: Wallet = 'main'): number {
+export function minutesToEarn(missingCents: number, rates: RateSnapshot, wallet: RewardWallet = 'main'): number {
   if (missingCents <= 0) return 0;
-  const rate = wallet === 'main' ? rates.creditCentsPerHour : rates.creativeCentsPerHour;
+  // Rewards paid from both accounts are estimated with the Setup Credit rate.
+  const rate = wallet !== 'creative' ? rates.creditCentsPerHour : rates.creativeCentsPerHour;
   if (rate <= 0) return Infinity;
-  const earn = (m: number) => (wallet === 'main' ? creditsForMinutes(m, rates) : creativeCreditsForMinutes(m, rates));
+  const earn = (m: number) => (wallet !== 'creative' ? creditsForMinutes(m, rates) : creativeCreditsForMinutes(m, rates));
   let minutes = Math.ceil((missingCents * 60) / rate);
   // Guard against rounding: make sure those minutes really earn enough.
   while (earn(minutes) < missingCents) minutes++;

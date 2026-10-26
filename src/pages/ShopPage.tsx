@@ -6,7 +6,8 @@ import { useAppStore } from '../store/appStore';
 import { useData, usePlayer } from '../store/hooks';
 import { inventory, rewardProgress, shopRewards } from '../domain/stats';
 import type { RewardStatus } from '../domain/stats';
-import { formatAmount, formatDate } from '../domain/format';
+import { formatAmount, formatDate, formatKC, formatSC } from '../domain/format';
+import { defaultCreativeShare } from '../domain/commands';
 import type { Wallet } from '../domain/types';
 import { cn } from '../lib/cn';
 import type { Reward } from '../domain/types';
@@ -40,6 +41,14 @@ export function ShopPage() {
   const [category, setCategory] = useState('alle');
   const [sort, setSort] = useState<Sort>('standard');
   const [confirming, setConfirming] = useState<Reward | null>(null);
+  /** Kreativ-Credits share when paying a reward from both accounts. */
+  const [splitKc, setSplitKc] = useState(0);
+  const splitMin = confirming ? Math.max(0, confirming.priceCents - player.balanceCents) : 0;
+  const splitMax = confirming ? Math.min(confirming.priceCents, player.creativeCents) : 0;
+  const askUnlock = (r: Reward) => {
+    setSplitKc(defaultCreativeShare(data, r));
+    setConfirming(r);
+  };
   const [editing, setEditing] = useState<Reward | null>(null);
 
   const setParam = (key: string, value: string | null) => {
@@ -74,7 +83,7 @@ export function ShopPage() {
 
   const confirmUnlock = () => {
     if (!confirming) return;
-    const r = purchase(confirming.id);
+    const r = purchase(confirming.id, confirming.wallet === 'both' ? splitKc : undefined);
     if (!r.ok) pushToast({ tone: 'error', title: 'Freischaltung nicht möglich', message: r.error });
     else setParam('belohnung', null);
   };
@@ -184,7 +193,7 @@ export function ShopPage() {
                   index={i}
                   isGoal={data.settings.goalRewardId === item.reward.id}
                   onOpen={() => setParam('belohnung', item.reward.id)}
-                  onUnlock={() => setConfirming(item.reward)}
+                  onUnlock={() => askUnlock(item.reward)}
                 />
               ))}
             </AnimatePresence>
@@ -197,7 +206,7 @@ export function ShopPage() {
       <RewardDetailDialog
         reward={detail}
         onClose={() => setParam('belohnung', null)}
-        onUnlock={(r) => setConfirming(r)}
+        onUnlock={(r) => askUnlock(r)}
         onEdit={(r) => {
           setParam('belohnung', null);
           setEditing(r);
@@ -222,13 +231,43 @@ export function ShopPage() {
           confirming && (
             <>
               <span className="font-medium text-fg">{confirming.name}</span> wird für {formatAmount(confirming.priceCents, confirming.wallet)} virtuell freigeschaltet.{' '}
-              {confirming.wallet === 'main' ? 'Dein Guthaben' : 'Dein Kreativ-Konto'} sinkt auf{' '}
-              {formatAmount((confirming.wallet === 'main' ? player.balanceCents : player.creativeCents) - confirming.priceCents, confirming.wallet)}. XP und Level bleiben
-              unverändert. Es wird nichts bestellt oder bezahlt.
+              {confirming.wallet === 'both' ? (
+                <>Wähle unten, wie viel aus welchem Konto kommt.</>
+              ) : (
+                <>
+                  {confirming.wallet === 'main' ? 'Dein Guthaben' : 'Dein Kreativ-Konto'} sinkt auf{' '}
+                  {formatAmount((confirming.wallet === 'main' ? player.balanceCents : player.creativeCents) - confirming.priceCents, confirming.wallet)}.
+                </>
+              )}{' '}
+              XP und Level bleiben unverändert. Es wird nichts bestellt oder bezahlt.
             </>
           )
         }
-      />
+      >
+        {confirming?.wallet === 'both' && (
+          <div className="mb-3 rounded-2xl border border-line-soft bg-[#111418] p-4">
+            <div className="mb-3 flex justify-between text-sm">
+              <span className="tabular font-medium text-gold">{formatSC(confirming.priceCents - splitKc)}</span>
+              <span className="text-faint">+</span>
+              <span className="tabular font-medium text-creative">{formatKC(splitKc)}</span>
+            </div>
+            <input
+              type="range"
+              aria-label="Anteil Kreativ-Credits"
+              min={splitMin}
+              max={splitMax}
+              step={1}
+              value={splitKc}
+              disabled={splitMin === splitMax}
+              onChange={(e) => setSplitKc(Number(e.target.value))}
+              className="w-full accent-[var(--color-creative)]"
+            />
+            <p className="tabular mt-2 text-xs text-faint">
+              Danach: {formatSC(player.balanceCents - (confirming.priceCents - splitKc))} · {formatKC(player.creativeCents - splitKc)}
+            </p>
+          </div>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
